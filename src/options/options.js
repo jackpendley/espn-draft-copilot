@@ -56,7 +56,8 @@ function App() {
 
     const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
     const picks = r.picks || [];
-    const withPlayers = picks.filter((p) => p.playerId > 0);
+    const withPlayers = picks.filter((p) => p.playerId);   // D/ST ids are negative
+    const dstPicks = withPlayers.filter((p) => p.playerId < 0);
     const resolved = withPlayers.filter((p) => byId.has(p.playerId));
     setDiag({
       season,
@@ -64,6 +65,8 @@ function App() {
       keepers: picks.filter((p) => p.keeper).length,
       resolved: resolved.length,
       unresolved: withPlayers.length - resolved.length,
+      dst: dstPicks.length,
+      skipped: picks.length - withPlayers.length,
       rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
       teams: new Set(picks.map((p) => p.teamId)).size,
       sample: picks.slice(0, 6).map((p) => ({
@@ -240,6 +243,8 @@ function App() {
           `Read ${diag.total} picks from the ${diag.season} draft — ${diag.rounds} rounds, ${diag.teams} teams. `
           + `${diag.resolved} mapped to players in the guide dataset`
           + (diag.unresolved ? `, ${diag.unresolved} not in it (expected: 2025 players who aren't 2026-relevant).` : '.')
+          + (diag.dst ? ` ${diag.dst} of them D/ST (negative ids).` : '')
+          + (diag.skipped ? ` ${diag.skipped} picks had no player attached.` : '')
           + (diag.keepers ? ` ${diag.keepers} flagged as keepers by ESPN.` : '')),
         h('table', null,
           h('thead', null, h('tr', null, ['Overall', 'Round', 'Team', 'Player', ''].map((t) => h('th', { key: t }, t)))),

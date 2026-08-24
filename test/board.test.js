@@ -131,3 +131,33 @@ test('a shorter league still ends on D/ST then Kicker', async () => {
   assert.equal(p13[11].target, 'T14');   // D/ST slot
   assert.equal(p13[12].target, 'T15');   // Kicker slot
 });
+
+test("D/ST picks count as drafted even though ESPN gives them negative ids", async () => {
+  const { buildBoard } = await import('../src/core/board.js');
+  const ds = {
+    players: [
+      { espnId: 4429795, name: 'A Back', pos: 'RB', team: 'DET',
+        espn: { adp: 1.5 }, joel: { pprRank: 1, posRank: 1, tier: 1, tag: 'neutral', stats: [] } },
+      { espnId: -16034, name: 'Texans D/ST', pos: 'DST', team: 'HOU',
+        espn: { adp: 140 }, joel: { pprRank: null, posRank: null, tier: null, tag: 'neutral', stats: [] } },
+      { espnId: -16007, name: 'Broncos D/ST', pos: 'DST', team: 'DEN',
+        espn: { adp: 145 }, joel: { pprRank: null, posRank: null, tier: null, tag: 'neutral', stats: [] } },
+    ],
+  };
+  // Houston's defense is gone; Denver's is not.
+  const rows = buildBoard(ds, { draftedIds: new Set([-16034]), currentOverall: 150, myNextOverall: 160 });
+  const names = rows.map((r) => r.name);
+  assert.ok(!names.includes('Texans D/ST'), 'a drafted D/ST must leave the board');
+  assert.ok(names.includes('Broncos D/ST'));
+});
+
+test('the drafted-set filter keeps negative ids and drops only playerId 0', () => {
+  // Mirrors the filter in Panel.js: `draft.picks.filter((p) => p.playerId)`.
+  const picks = [
+    { playerId: 4429795 },   // a normal player
+    { playerId: -16034 },    // a D/ST
+    { playerId: 0 },         // ESPN's "no selection"
+  ];
+  const kept = picks.filter((p) => p.playerId).map((p) => p.playerId);
+  assert.deepEqual(kept, [4429795, -16034]);
+});

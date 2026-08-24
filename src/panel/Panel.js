@@ -75,7 +75,8 @@ export function Panel() {
   const keptIds = useMemo(() => new Set(keepers.map((k) => k.espnId)), [keepers]);
 
   const draftedIds = useMemo(() => {
-    const s = new Set(draft.picks.filter((p) => p.playerId > 0).map((p) => p.playerId));
+    // D/ST ids are negative in ESPN's data; 0 means no selection. Only 0 is a skip.
+    const s = new Set(draft.picks.filter((p) => p.playerId).map((p) => p.playerId));
     for (const id of config?.manualDrafted || []) s.add(id);
     for (const id of config?.manualUndrafted || []) s.delete(id);
     return s;
