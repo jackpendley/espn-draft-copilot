@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback } from 'preact/hooks';
 import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns } from '../core/board.js';
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
+import { DEFAULTS } from '../core/storage.js';
 import { PlayerCard } from './PlayerCard.js';
 import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
 
@@ -29,7 +30,7 @@ export function Panel() {
     (async () => {
       const d = await send({ type: 'dataset' });
       if (d?.ok) setDataset(d.dataset); else setError(d?.error || 'Could not load the guide dataset.');
-      const cfg = await chrome.storage.local.get(null);
+      const cfg = { ...DEFAULTS, ...(await chrome.storage.local.get(null)) };
       setConfig(cfg);
       setSortMode(cfg.sortMode || 'value');
       setHideAvoid(!!cfg.hideAvoid);
@@ -39,7 +40,7 @@ export function Panel() {
     })();
     const onChange = (changes, area) => {
       if (area !== 'local') return;
-      chrome.storage.local.get(null).then(setConfig);
+      chrome.storage.local.get(null).then((c) => setConfig({ ...DEFAULTS, ...c }));
     };
     chrome.storage.onChanged.addListener(onChange);
     return () => chrome.storage.onChanged.removeListener(onChange);

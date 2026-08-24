@@ -20,14 +20,38 @@ Then in Chrome:
 1. Go to `chrome://extensions`, turn on **Developer mode**
 2. **Load unpacked** → select the `extension/` folder
 3. Click the extension icon (or Extensions → Details → Extension options)
-4. Enter your **League ID** and **draft slot** (5), hit **Connect to ESPN** — team count,
-   rounds and roster slots fill in automatically
+4. League ID (`1234567890`) and draft slot (`5`) are pre-filled. Hit **Connect to ESPN** —
+   team count, rounds and roster slots fill in automatically
 5. Paste your keeper sheet (below)
 
-Open `fantasy.espn.com/football/draft?leagueId=…` and the panel appears. Drag it by its header.
+**Be signed in to ESPN with a `fantasy.espn.com` tab open.** The league is private, so every
+read needs your session cookie. See "How the private-league reads work" below.
+
+Open `fantasy.espn.com/football/draft?leagueId=1234567890` and the panel appears. Drag it by
+its header. To dry-run the panel on any other ESPN page, append `?copilot=1` to the URL.
 
 **Re-run `npm run fetch:players && npm run build` the morning of the draft** so ADP is current.
 ADP moves a lot in the final week.
+
+---
+
+## How the private-league reads work
+
+League 1234567890 is private — `curl` gets a flat 401. Only a request carrying your ESPN
+session cookie can read it, and *where the request comes from* decides whether the cookie is
+attached:
+
+- A fetch from the **extension's own origin** is cross-site to espn.com. If ESPN's `espn_s2`
+  cookie is `SameSite=Lax`, the cookie is dropped and the call 401s.
+- A fetch from a **content script on fantasy.espn.com** is same-site (both are `*.espn.com`),
+  so the cookie goes along.
+
+So the service worker asks an open ESPN tab to make the request on its behalf, and only falls
+back to a direct fetch if no tab is available. Whichever path ESPN's cookie policy allows, one
+of them works — and you don't discover which during a draft. If both fail you get "ESPN says
+not authorized… make sure you are signed in" rather than a silent empty board.
+
+Practical upshot: **keep a `fantasy.espn.com` tab open.** The draft room itself counts.
 
 ---
 

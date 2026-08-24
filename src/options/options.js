@@ -2,6 +2,7 @@ import { h, render } from 'preact';
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { parseKeeperPaste, simulatePickOrder } from '../core/keepers.js';
 import { buildIndex, resolve } from '../core/names.js';
+import { DEFAULTS } from '../core/storage.js';
 
 const send = (msg) => new Promise((r) => chrome.runtime.sendMessage(msg, r));
 
@@ -15,7 +16,7 @@ function App() {
 
   useEffect(() => {
     (async () => {
-      setCfg(await chrome.storage.local.get(null));
+      setCfg({ ...DEFAULTS, ...(await chrome.storage.local.get(null)) });
       const d = await send({ type: 'dataset' });
       if (d?.ok) setDataset(d.dataset);
     })();
@@ -28,7 +29,7 @@ function App() {
 
   const save = async (patch) => {
     await chrome.storage.local.set(patch);
-    setCfg(await chrome.storage.local.get(null));
+    setCfg({ ...DEFAULTS, ...(await chrome.storage.local.get(null)) });
   };
 
   const testLeague = async () => {

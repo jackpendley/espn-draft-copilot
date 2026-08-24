@@ -2,8 +2,8 @@
 // Everything the panel needs to survive a mid-draft page reload lives here.
 
 export const DEFAULTS = {
-  leagueId: null,
-  myTeamSlot: null,        // 1-based draft position (yours is 5)
+  leagueId: '1234567890',  // Jack's league
+  myTeamSlot: 5,           // 1-based draft position
   teams: 12,
   rounds: 15,
   scoring: 'PPR',

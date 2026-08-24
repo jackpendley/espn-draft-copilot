@@ -2,15 +2,11 @@
 // which we get for free from host_permissions + credentials: 'include'.
 
 import { leagueUrl, POSITION_BY_ID, PRO_TEAM_BY_ID } from './espn-constants.js';
+import { fetchViaPageOrDirect } from './espn-fetch.js';
 
-async function getJson(url, extraHeaders = {}) {
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: { accept: 'application/json', ...extraHeaders },
-  });
-  if (!res.ok) throw new Error(`ESPN ${res.status} for ${url.slice(0, 90)}`);
-  return res.json();
-}
+// Private-league reads need the user's cookies; see espn-fetch.js for why this is
+// not a plain fetch.
+const getJson = (url, extraHeaders = {}) => fetchViaPageOrDirect(url, extraHeaders);
 
 /** League settings + teams: size, roster slots, scoring, and who owns which draft slot. */
 export async function fetchLeague(leagueId) {

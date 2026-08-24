@@ -9,6 +9,8 @@ const settings = JSON.parse(readFileSync(new URL('./fixtures/league-mSettings.js
 const draftDetail = JSON.parse(readFileSync(new URL('./fixtures/league-mDraftDetail.json', import.meta.url), 'utf8'));
 
 function stubFetch(payload) {
+  // No ESPN tab available, so the fetcher falls through to a direct call.
+  globalThis.chrome = { runtime: { lastError: null }, tabs: { query: async () => [], sendMessage: (_i, _m, cb) => cb(null) } };
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => payload });
 }
 
@@ -41,8 +43,11 @@ test('draft picks come back sorted by overall pick, keeper flag preserved', asyn
   assert.equal(d.picks[2].round, 1);
 });
 
-test('a failed request throws with the status rather than returning junk', async () => {
+test('a 401 surfaces actionable guidance, not a raw status', async () => {
+  globalThis.chrome = { runtime: { lastError: null }, tabs: { query: async () => [], sendMessage: (_i, _m, cb) => cb(null) } };
   globalThis.fetch = async () => ({ ok: false, status: 401, statusText: 'Unauthorized' });
   const { fetchLeague } = await import('../src/core/espn-api.js');
-  await assert.rejects(() => fetchLeague('123'), /ESPN 401/);
+  // This league is private, so a 401 means the cookie did not come along --
+  // the fix is to be signed in with an ESPN tab open, and the message should say so.
+  await assert.rejects(() => fetchLeague('123'), /not authorized.*signed in/is);
 });

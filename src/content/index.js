@@ -5,10 +5,17 @@
 import { h, render } from 'preact';
 import { Panel } from '../panel/Panel.js';
 import { attachBadges } from './badges.js';
+import { installFetchRelay } from '../core/espn-fetch.js';
 
 const HOST_ID = 'draft-copilot-root';
 
+// Register this before anything else: the service worker relies on any ESPN tab,
+// draft room or not, to make same-site requests on its behalf.
+installFetchRelay();
+
 function isDraftRoom() {
+  // ?copilot=1 force-mounts anywhere on fantasy.espn.com, for pre-draft dry runs.
+  if (new URLSearchParams(location.search).get('copilot') === '1') return true;
   return /\/football\/(draft|mockdraft|mockdraftlobby)/.test(location.pathname)
       || document.querySelector('.draft-columns, [class*="draftContainer"], [class*="PlayerTable"]') != null;
 }
