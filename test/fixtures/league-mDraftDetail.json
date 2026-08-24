@@ -1,0 +1,32 @@
+{
+ "draftDetail": {
+  "drafted": false,
+  "inProgress": true,
+  "picks": [
+   {
+    "overallPickNumber": 1,
+    "roundId": 1,
+    "roundPickNumber": 1,
+    "teamId": 1,
+    "playerId": 4429795,
+    "keeper": false
+   },
+   {
+    "overallPickNumber": 3,
+    "roundId": 1,
+    "roundPickNumber": 3,
+    "teamId": 3,
+    "playerId": 4362628,
+    "keeper": false
+   },
+   {
+    "overallPickNumber": 2,
+    "roundId": 1,
+    "roundPickNumber": 2,
+    "teamId": 2,
+    "playerId": 4430807,
+    "keeper": true
+   }
+  ]
+ }
+}
