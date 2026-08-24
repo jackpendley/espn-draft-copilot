@@ -5,6 +5,7 @@ import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
 import { send } from '../core/messaging.js';
+import { extensionAlive, safeGet, safeSet, onStorageLocal } from '../core/runtime.js';
 import { PlayerCard } from './PlayerCard.js';
 import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
 
@@ -23,13 +24,14 @@ export function Panel() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [stale, setStale] = useState(false);   // orphaned by an extension reload
 
   // ---- load static things once ----
   useEffect(() => {
     (async () => {
       const d = await send({ type: 'dataset' });
       if (d?.ok) setDataset(d.dataset); else setError(d?.error || 'Could not load the guide dataset.');
-      const cfg = { ...DEFAULTS, ...(await chrome.storage.local.get(null)) };
+      const cfg = { ...DEFAULTS, ...(await safeGet(null)) };
       setConfig(cfg);
       setSortMode(cfg.sortMode || 'value');
       setHideAvoid(!!cfg.hideAvoid);
@@ -37,25 +39,27 @@ export function Panel() {
       if (l?.ok) setLeague(l.league);
       else setError((e) => e || l?.error || null);
     })();
-    const onChange = (changes, area) => {
-      if (area !== 'local') return;
-      chrome.storage.local.get(null).then((c) => setConfig({ ...DEFAULTS, ...c }));
-    };
-    chrome.storage.onChanged.addListener(onChange);
-    return () => chrome.storage.onChanged.removeListener(onChange);
+    return onStorageLocal(() => {
+      safeGet(null).then((c) => setConfig({ ...DEFAULTS, ...c }));
+    });
   }, []);
 
   // ---- poll live picks ----
   useEffect(() => {
     if (!config?.leagueId) return;
     let alive = true;
+    let id = null;
+    const stop = () => { alive = false; if (id) clearInterval(id); id = null; };
     const tick = async () => {
+      if (!extensionAlive()) { setStale(true); stop(); return; }
       const r = await send({ type: 'picks' });
-      if (alive && r?.ok) setDraft({ picks: r.picks, inProgress: r.inProgress, drafted: r.drafted });
+      if (!alive) return;
+      if (r?.invalidated) { setStale(true); stop(); return; }
+      if (r?.ok) setDraft({ picks: r.picks, inProgress: r.inProgress, drafted: r.drafted });
     };
     tick();
-    const id = setInterval(tick, 3000);
-    return () => { alive = false; clearInterval(id); };
+    id = setInterval(tick, 3000);
+    return stop;
   }, [config?.leagueId]);
 
   const teams = league?.teams || config?.teams || 12;
@@ -133,8 +137,8 @@ export function Panel() {
   const needs = league?.slotCounts ? rosterNeeds(myRoster, league.slotCounts) : [];
 
   const markDrafted = useCallback(async (espnId) => {
-    const cur = (await chrome.storage.local.get('manualDrafted')).manualDrafted || [];
-    await chrome.storage.local.set({ manualDrafted: [...new Set([...cur, espnId])] });
+    const cur = (await safeGet('manualDrafted')).manualDrafted || [];
+    await safeSet({ manualDrafted: [...new Set([...cur, espnId])] });
   }, []);
 
   if (collapsed) {
@@ -148,7 +152,12 @@ export function Panel() {
       h('button', { class: 'dc-close', onClick: () => setCollapsed(true), title: 'Collapse' }, '–'),
     ),
 
-    error && h('div', { class: 'dc-error' }, error,
+    stale && h('div', { class: 'dc-stale' },
+      h('strong', null, 'This panel is out of date. '),
+      'The extension was reloaded or updated, so it stopped syncing. Refresh this page to reconnect.',
+      h('button', { onClick: () => location.reload() }, 'Refresh page')),
+
+    !stale && error && h('div', { class: 'dc-error' }, error,
       h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Open options')),
 
     !config?.leagueId && h('div', { class: 'dc-error' },
@@ -201,7 +210,7 @@ export function Panel() {
             adp: 'Keeper-adjusted ADP',
             edge: 'Where Joel is furthest ahead of the market',
           }[m],
-          onClick: () => { setSortMode(m); chrome.storage.local.set({ sortMode: m }); },
+          onClick: () => { setSortMode(m); safeSet({ sortMode: m }); },
         }, { value: 'Best value', joel: 'Joel rank', adp: 'ADP', edge: 'Joel edge' }[m])),
       ),
       h('div', { class: 'dc-filters' },
@@ -210,7 +219,7 @@ export function Panel() {
           onClick: () => setPositions((cur) => cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]),
         }, p)),
         h('button', { class: targetsOnly ? 'dc-on' : '', onClick: () => setTargetsOnly((v) => !v) }, '★ Targets'),
-        h('button', { class: hideAvoid ? 'dc-on' : '', onClick: () => { const v = !hideAvoid; setHideAvoid(v); chrome.storage.local.set({ hideAvoid: v }); } }, 'Hide avoid'),
+        h('button', { class: hideAvoid ? 'dc-on' : '', onClick: () => { const v = !hideAvoid; setHideAvoid(v); safeSet({ hideAvoid: v }); } }, 'Hide avoid'),
       ),
       h('input', {
         class: 'dc-search', placeholder: 'Search player or team…',

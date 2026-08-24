@@ -167,3 +167,14 @@
   font: 700 10px -apple-system, BlinkMacSystemFont, sans-serif;
   color: #fff; border-radius: 3px; vertical-align: middle; cursor: help;
 }
+
+/* Shown when an extension reload orphaned this content script. */
+.dc-stale {
+  padding: 10px 12px; background: #fff6e0; color: #7a5c00;
+  border-bottom: 1px solid #f0d9a0; font-size: 12px; line-height: 1.5;
+}
+.dc-stale button {
+  display: block; margin-top: 7px; padding: 4px 10px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid #c99700; background: #fff; color: #7a5c00; border-radius: 4px;
+}
+.dc-stale button:hover { background: #fffaf0; }

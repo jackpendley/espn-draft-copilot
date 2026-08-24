@@ -4,6 +4,7 @@
 
 import { TAG_COLOR, TAG_LABEL } from '../panel/format.js';
 import { send } from '../core/messaging.js';
+import { extensionAlive } from '../core/runtime.js';
 
 const MARK = 'data-dc-badged';
 
@@ -32,9 +33,14 @@ export async function attachBadges() {
     byName.set(normalize(p.name), p);
   }
 
-  const run = () => { try { decorate(); } catch { /* stay quiet during a draft */ } };
+  let obs = null;
+  const run = () => {
+    // Once the extension is reloaded this script is orphaned; stop rather than throw.
+    if (!extensionAlive()) { obs?.disconnect(); return; }
+    try { decorate(); } catch { /* stay quiet during a draft */ }
+  };
   run();
-  const obs = new MutationObserver(debounce(run, 250));
+  obs = new MutationObserver(debounce(run, 250));
   obs.observe(document.body, { childList: true, subtree: true });
 }
 

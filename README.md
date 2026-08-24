@@ -149,6 +149,18 @@ To see the panel on any other ESPN page, append `?copilot=1` to the URL.
 
 ---
 
+## "Extension context invalidated"
+
+Expected, not a bug. Reloading the extension orphans any content script already running
+in an open tab — its `chrome.*` handles go dead. **Refresh the ESPN tab and it clears.**
+
+The panel now detects this and shows an amber "This panel is out of date" bar with a
+Refresh button instead of silently freezing, which is the behaviour that matters if Chrome
+ever auto-updates the extension mid-draft. Rule of thumb: after any `npm run build`,
+reload the extension *and* refresh the ESPN tab.
+
+---
+
 ## If something breaks on draft night
 
 1. **Panel gone but ESPN fine** — options page → **Open standalone board**. Same board in its own

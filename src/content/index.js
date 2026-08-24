@@ -6,6 +6,7 @@ import { h, render } from 'preact';
 import { Panel } from '../panel/Panel.js';
 import { attachBadges } from './badges.js';
 import { installFetchRelay } from '../core/espn-fetch.js';
+import { extensionAlive } from '../core/runtime.js';
 
 const HOST_ID = 'draft-copilot-root';
 
@@ -72,5 +73,8 @@ function makeDraggable(el) {
 
 // ESPN is a SPA: the draft room can appear after initial load.
 if (isDraftRoom()) mount();
-const obs = new MutationObserver(() => { if (isDraftRoom()) mount(); });
+const obs = new MutationObserver(() => {
+  if (!extensionAlive()) { obs.disconnect(); return; }
+  if (isDraftRoom()) mount();
+});
 obs.observe(document.documentElement, { childList: true, subtree: true });
