@@ -17,7 +17,9 @@ async function getLeague(leagueId, force = false) {
   return league;
 }
 
-async function getPicks(leagueId, force = false) {
+async function getPicks(leagueId, force = false, season) {
+  // A past-season request is a diagnostic, never the live poll -- don't let it poison the cache.
+  if (season) return fetchDraftPicks(leagueId, season);
   if (!force && cache.picks && Date.now() - cache.picksAt < PICKS_TTL) return cache.picks;
   const picks = await fetchDraftPicks(leagueId);
   cache.picks = picks; cache.picksAt = Date.now();
@@ -39,7 +41,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           break;
         case 'picks':
           if (!leagueId) throw new Error('No leagueId configured.');
-          sendResponse({ ok: true, ...(await getPicks(leagueId, msg.force)) });
+          sendResponse({ ok: true, ...(await getPicks(leagueId, msg.force, msg.season)) });
           break;
         case 'dataset': {
           const res = await fetch(chrome.runtime.getURL('build/dataset.json'));

@@ -28,7 +28,7 @@ export const READ_HOST = 'https://lm-api-reads.fantasy.espn.com';
 export const PLAYER_UNIVERSE_URL =
   `${READ_HOST}/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leaguedefaults/3?view=kona_player_info`;
 
-export function leagueUrl(leagueId, views) {
+export function leagueUrl(leagueId, views, season = SEASON) {
   const q = views.map((v) => `view=${v}`).join('&');
-  return `${READ_HOST}/apis/v3/games/ffl/seasons/${SEASON}/segments/0/leagues/${leagueId}?${q}`;
+  return `${READ_HOST}/apis/v3/games/ffl/seasons/${season}/segments/0/leagues/${leagueId}?${q}`;
 }

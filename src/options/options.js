@@ -13,6 +13,7 @@ function App() {
   const [status, setStatus] = useState(null);
   const [paste, setPaste] = useState('');
   const [parsed, setParsed] = useState(null);
+  const [diag, setDiag] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +43,33 @@ function App() {
       kind: 'ok',
       text: `Connected: ${r.league.name} — ${r.league.teams} teams, ${r.league.rounds} rounds`
           + `, slots ${Object.entries(r.league.slotCounts).map(([k, v]) => `${k}×${v}`).join(' ')}`,
+    });
+  };
+
+  // Replays last season's completed draft through the live sync path. This is the only
+  // way to prove pick-sync works before the 2026 draft room opens.
+  const runDiagnostics = async () => {
+    setDiag({ running: true });
+    const season = 2025;
+    const r = await send({ type: 'picks', leagueId: cfg.leagueId, season });
+    if (!r?.ok) { setDiag({ error: r?.error || 'Failed.' }); return; }
+
+    const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
+    const picks = r.picks || [];
+    const withPlayers = picks.filter((p) => p.playerId > 0);
+    const resolved = withPlayers.filter((p) => byId.has(p.playerId));
+    setDiag({
+      season,
+      total: picks.length,
+      keepers: picks.filter((p) => p.keeper).length,
+      resolved: resolved.length,
+      unresolved: withPlayers.length - resolved.length,
+      rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
+      teams: new Set(picks.map((p) => p.teamId)).size,
+      sample: picks.slice(0, 6).map((p) => ({
+        overall: p.overall, round: p.round, teamId: p.teamId, keeper: p.keeper,
+        name: byId.get(p.playerId)?.name || `(id ${p.playerId})`,
+      })),
     });
   };
 
@@ -192,6 +220,40 @@ function App() {
             h('td', null, k.teamSlot === cfg.myTeamSlot ? h('span', { class: 'pill mine' }, 'YOURS') : null),
           ))),
         ),
+      ),
+    ),
+
+    // ---- diagnostics ----
+    h('div', { class: 'card' },
+      h('h2', { style: 'margin-top:0' }, 'Pick-sync diagnostic'),
+      h('p', { class: 'hint' },
+        "The 2026 draft room isn't open yet, so the live pick feed can't be tested directly. "
+        + "This replays your league's completed 2025 draft through the exact same code path — "
+        + 'same auth, same parsing, same player-id mapping.'),
+      h('div', { class: 'row' },
+        h('button', { onClick: runDiagnostics, disabled: !cfg.leagueId || !dataset }, 'Replay 2025 draft'),
+      ),
+      diag?.running && h('p', { class: 'hint' }, 'Fetching…'),
+      diag?.error && h('div', { class: 'status err', style: 'margin-top:12px' }, diag.error),
+      diag?.total != null && h('div', null,
+        h('div', { class: `status ${diag.resolved > 0 ? 'ok' : 'err'}`, style: 'margin-top:12px' },
+          `Read ${diag.total} picks from the ${diag.season} draft — ${diag.rounds} rounds, ${diag.teams} teams. `
+          + `${diag.resolved} mapped to players in the guide dataset`
+          + (diag.unresolved ? `, ${diag.unresolved} not in it (expected: 2025 players who aren't 2026-relevant).` : '.')
+          + (diag.keepers ? ` ${diag.keepers} flagged as keepers by ESPN.` : '')),
+        h('table', null,
+          h('thead', null, h('tr', null, ['Overall', 'Round', 'Team', 'Player', ''].map((t) => h('th', { key: t }, t)))),
+          h('tbody', null, diag.sample.map((p) => h('tr', { key: p.overall },
+            h('td', null, `#${p.overall}`),
+            h('td', null, `R${p.round}`),
+            h('td', null, p.teamId),
+            h('td', null, p.name),
+            h('td', null, p.keeper ? h('span', { class: 'pill ok' }, 'KEEPER') : null),
+          ))),
+        ),
+        h('p', { class: 'hint' },
+          'If this returns picks with real player names, the whole sync path works and the only '
+          + 'thing left untested is that ESPN populates it live during the draft.'),
       ),
     ),
 

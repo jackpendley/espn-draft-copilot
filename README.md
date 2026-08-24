@@ -130,6 +130,25 @@ Severity is `block` / `warn` / `note` / `good` — and off-plan is only ever a n
 
 ---
 
+## Testing before the draft room opens
+
+ESPN doesn't open the real draft room until close to your scheduled time, so
+`fantasy.espn.com/football/draft?leagueId=…` is a dead link until then. Two ways to test anyway:
+
+**Pick-sync — replay last season.** Options page → **Replay 2025 draft**. Your league's completed
+2025 draft runs through the exact same path the live feed will use: same auth, same parsing, same
+player-id mapping. If it comes back with real player names, the only untested link left is ESPN
+populating the feed live.
+
+**Panel mount and badges — use a mock draft.** `fantasy.espn.com/football/mockdraftlobby`. The
+panel mounts there and badges attach to ESPN's player rows. Note that a mock is a *different*
+league, so the pick counter will not advance — it's still polling your real league. That's
+expected; use the replay above for sync and the mock for everything visual.
+
+To see the panel on any other ESPN page, append `?copilot=1` to the URL.
+
+---
+
 ## If something breaks on draft night
 
 1. **Panel gone but ESPN fine** — options page → **Open standalone board**. Same board in its own

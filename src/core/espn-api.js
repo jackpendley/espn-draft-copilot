@@ -37,9 +37,13 @@ export async function fetchLeague(leagueId) {
   };
 }
 
-/** Live draft picks. Poll this during the draft. */
-export async function fetchDraftPicks(leagueId) {
-  const data = await getJson(leagueUrl(leagueId, ['mDraftDetail']));
+/**
+ * Live draft picks. Poll this during the draft.
+ * `season` exists so last year's completed draft can be replayed as a real-data test
+ * of this whole path before the current draft room is open.
+ */
+export async function fetchDraftPicks(leagueId, season) {
+  const data = await getJson(leagueUrl(leagueId, ['mDraftDetail'], season));
   const dd = data.draftDetail || {};
   return {
     drafted: !!dd.drafted,
