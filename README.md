@@ -130,6 +130,21 @@ Severity is `block` / `warn` / `note` / `good` — and off-plan is only ever a n
 
 ---
 
+## Draft day sequence (Sept 3)
+
+1. **Morning of:** `npm run fetch:players && npm run build` — ADP moves hard in the final week
+2. `chrome://extensions` → reload the extension
+3. Options → paste the final keeper sheet → set each keeper's draft slot → Save
+4. Check the **Your real picks** card: with everyone's keepers in, those overall numbers
+   are what the panel will hold you to
+5. Open the draft room. Refresh the tab if you rebuilt after opening it
+6. Confirm the panel shows your correct pick number before the first pick
+
+During the draft: if the panel ever looks stuck, check the footer — "Live · syncing every 3s"
+means the feed is healthy. An amber bar means refresh the page.
+
+---
+
 ## Testing before the draft room opens
 
 ESPN doesn't open the real draft room until close to your scheduled time, so
