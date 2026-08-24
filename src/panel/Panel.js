@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect, useMemo, useCallback } from 'preact/hooks';
-import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns } from '../core/board.js';
+import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlanFor } from '../core/board.js';
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
@@ -125,7 +125,12 @@ export function Panel() {
     return [...fromKeepers, ...fromPicks];
   }, [dataset, draft.picks, order.picks, mySlot, keepers]);
 
-  const planTarget = dataset?.strategy?.roundByRound?.plan?.find((p) => p.round === currentRound)?.target;
+  // His plan is written for 15 rounds; this league has its own count.
+  const roundPlan = useMemo(
+    () => (dataset ? roundPlanFor(dataset.strategy.roundByRound.plan, rounds) : []),
+    [dataset, rounds],
+  );
+  const planTarget = roundPlan.find((p) => p.round === currentRound)?.target;
   const needs = league?.slotCounts ? rosterNeeds(myRoster, league.slotCounts) : [];
 
   const markDrafted = useCallback(async (espnId) => {

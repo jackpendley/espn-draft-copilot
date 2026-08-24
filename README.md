@@ -2,8 +2,10 @@
 
 Joel Smyth's Draft Guide 2026, keeper-aware, live inside the ESPN draft room.
 
-Built for one specific draft: **12-team full PPR keeper league, snake, pick 5, September 3 2026**,
-keeping Jaxon Smith-Njigba for a 6th-round pick.
+Built for one specific draft: **Example Keeper League** — 12-team full PPR keeper, snake, **16 rounds**,
+pick 5, September 3 2026, keeping Jaxon Smith-Njigba for a 6th-round pick.
+
+Roster: QB×1 RB×2 WR×2 TE×1 FLEX×1 DST×1 K×1, BE×7, IR×1.
 
 ---
 
@@ -114,6 +116,11 @@ underlines in his positional rankings.
 the regression direction, PPR-vs-half lean, RB volume and gold-mine bucket, the team's OL rating
 and playcaller tendencies and gamescript, every one of the 50 stats that mentions them, and the
 profile card with ceiling/risk for the 16 preview players.
+
+**Round plan.** Joel's round-by-round is written for 15 rounds; this league has 16. The plan is
+mapped by shape rather than by literal round number — his last two rounds are always D/ST then
+Kicker, so those anchor to R15/R16 and the surplus round becomes "BPA / Upside" at R14. The
+no-K/DST guardrail follows the league's real round count too, so it opens at R15.
 
 **Guardrails** fire on the selected player, drawn from p11:
 no K/DST before the last two rounds · the RB30–40 dead zone · reaching 20+ picks ahead of ADP ·

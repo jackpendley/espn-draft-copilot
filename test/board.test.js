@@ -95,3 +95,39 @@ test('positionRuns flags a run and ignores a balanced window', () => {
 test('a short window is not enough evidence for a run', () => {
   assert.equal(positionRuns([{ pos: 'RB' }, { pos: 'RB' }, { pos: 'RB' }], 8).length, 0);
 });
+
+test('a 15-round plan maps onto a 16-round league with D/ST and K last', async () => {
+  const { roundPlanFor } = await import('../src/core/board.js');
+  const guide = [
+    { round: 1, target: 'RB' }, { round: 2, target: 'RB' }, { round: 3, target: 'WR' },
+    { round: 4, target: 'BPA' }, { round: 5, target: 'WR' }, { round: 6, target: 'BPA' },
+    { round: 7, target: 'BPA' }, { round: 8, target: 'QB' }, { round: 9, target: 'Upside WR' },
+    { round: 10, target: 'Punt TE' }, { round: 11, target: 'Top Handcuff' },
+    { round: 12, target: 'Upside QB' }, { round: 13, target: 'Favorite Deep Sleeper' },
+    { round: 14, target: 'D/ST' }, { round: 15, target: 'Kicker/IR player' },
+  ];
+  const p16 = roundPlanFor(guide, 16);
+  assert.equal(p16.length, 16);
+  assert.equal(p16[0].target, 'RB');                 // early rounds untouched
+  assert.equal(p16[7].target, 'QB');                 // his round 8 QB stays at 8
+  assert.equal(p16[12].target, 'Favorite Deep Sleeper');
+  assert.equal(p16[13].target, 'BPA / Upside');      // the extra round
+  assert.equal(p16[13].extra, true);
+  assert.equal(p16[14].target, 'D/ST');              // anchored to second-to-last
+  assert.equal(p16[15].target, 'Kicker/IR player');
+});
+
+test('an identical round count passes the plan through unchanged', async () => {
+  const { roundPlanFor } = await import('../src/core/board.js');
+  const guide = Array.from({ length: 15 }, (_, i) => ({ round: i + 1, target: `T${i + 1}` }));
+  assert.deepEqual(roundPlanFor(guide, 15).map((p) => p.target), guide.map((p) => p.target));
+});
+
+test('a shorter league still ends on D/ST then Kicker', async () => {
+  const { roundPlanFor } = await import('../src/core/board.js');
+  const guide = Array.from({ length: 15 }, (_, i) => ({ round: i + 1, target: `T${i + 1}` }));
+  const p13 = roundPlanFor(guide, 13);
+  assert.equal(p13.length, 13);
+  assert.equal(p13[11].target, 'T14');   // D/ST slot
+  assert.equal(p13[12].target, 'T15');   // Kicker slot
+});

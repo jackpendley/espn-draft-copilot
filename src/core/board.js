@@ -119,3 +119,34 @@ export function positionRuns(recentPicks, windowSize = 8) {
     .map(([pos, n]) => ({ pos, count: n, of: w.length }))
     .sort((a, b) => b.count - a.count);
 }
+
+/**
+ * Joel's round-by-round is written for a 15-round 12-team PPR draft. Real leagues differ
+ * (ours is 16), so anchor the shape rather than the literal round numbers: his last two
+ * rounds are always D/ST then Kicker, and any extra rounds in between become upside swings.
+ *
+ * @param plan        [{ round, target }] as printed in the guide
+ * @param totalRounds the league's actual round count
+ */
+export function roundPlanFor(plan, totalRounds) {
+  const guideRounds = plan.length;
+  if (totalRounds === guideRounds) return plan.map((p) => ({ ...p }));
+
+  const dst = plan[guideRounds - 2]?.target ?? 'D/ST';
+  const kicker = plan[guideRounds - 1]?.target ?? 'Kicker';
+  const head = plan.slice(0, guideRounds - 2);           // rounds 1..13 of his plan
+
+  const out = [];
+  const bodyRounds = totalRounds - 2;
+  for (let r = 1; r <= bodyRounds; r++) {
+    const fromGuide = head[r - 1];
+    out.push({
+      round: r,
+      target: fromGuide ? fromGuide.target : 'BPA / Upside',
+      extra: !fromGuide,                                  // a round his plan does not cover
+    });
+  }
+  out.push({ round: totalRounds - 1, target: dst });
+  out.push({ round: totalRounds, target: kicker });
+  return out;
+}
