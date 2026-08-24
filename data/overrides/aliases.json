@@ -1,0 +1,9 @@
+{
+  "_comment": "Maps a guide spelling (normalized, suffix-stripped) to the ESPN spelling. Extend as the build report demands.",
+  "aliases": {
+    "kenneth gainwell": "Kenny Gainwell",
+    "bill croskey merritt": "Jacory Croskey-Merritt",
+    "andres borregales": "Andy Borregales",
+    "eddie pineiro": "Eddy Pineiro"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "espn-draft-copilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Joel Smyth's 2026 Draft Guide, live inside the ESPN draft room",
+  "scripts": {
+    "fetch:players": "node scripts/fetch-espn-players.mjs",
+    "build:data": "node scripts/build-dataset.mjs",
+    "build:ext": "node scripts/build-extension.mjs",
+    "build": "npm run build:data && npm run build:ext",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "preact": "^10.25.0"
+  },
+  "dependencies": {
+    "preact-render-to-string": "^6.7.0"
+  }
+}

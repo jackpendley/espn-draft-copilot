@@ -1,0 +1,169 @@
+/* Draft Copilot -- all styles are namespaced .dc-* and scoped under #draft-copilot-root
+   so nothing can leak into ESPN's own layout. */
+
+#draft-copilot-root { position: fixed; z-index: 2147483000; }
+
+.dc-shell {
+  position: fixed; top: 64px; right: 16px; width: 520px; max-height: calc(100vh - 96px);
+  display: flex; flex-direction: column;
+  font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1a1d21; background: #fff;
+  border: 1px solid #d3d7dd; border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  overflow: hidden;
+}
+.dc-panel { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 96px); }
+
+.dc-header {
+  display: flex; align-items: center; gap: 8px; padding: 9px 12px;
+  background: #12181f; color: #fff; cursor: move; user-select: none; flex: none;
+}
+.dc-title { font-weight: 700; letter-spacing: .2px; }
+.dc-sub { font-size: 11px; opacity: .68; }
+.dc-close {
+  margin-left: auto; background: transparent; border: 0; color: #fff;
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; opacity: .8;
+}
+.dc-close:hover { opacity: 1; }
+
+.dc-collapsed {
+  position: fixed; top: 64px; right: 16px; z-index: 2147483000;
+  background: #12181f; color: #fff; padding: 8px 14px; border-radius: 8px;
+  font: 600 12px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+
+.dc-error {
+  padding: 10px 12px; background: #fdecea; color: #8c1d18;
+  border-bottom: 1px solid #f5c6c2; font-size: 12px;
+}
+.dc-error button {
+  margin-left: 8px; font-size: 11px; padding: 3px 8px; cursor: pointer;
+  border: 1px solid #c62828; background: #fff; color: #c62828; border-radius: 4px;
+}
+
+/* ---- status strip ---- */
+.dc-status { display: flex; gap: 1px; background: #e6e9ee; flex: none; }
+.dc-statbox { flex: 1; background: #f7f8fa; padding: 7px 10px; }
+.dc-statbox.dc-you { background: #e8f5ec; box-shadow: inset 0 -2px 0 #1f9d4d; }
+.dc-statlabel { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: #6b7280; }
+.dc-statvalue { font-size: 15px; font-weight: 700; }
+.dc-statsub { font-size: 11px; font-weight: 500; color: #6b7280; }
+.dc-plan { font-size: 13px; color: #0b5cad; }
+
+/* ---- alerts ---- */
+.dc-alerts { padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; flex: none; }
+.dc-alert { font-size: 11.5px; padding: 5px 8px; border-radius: 5px; border-left: 3px solid; }
+.dc-alert-warn { background: #fff6e0; border-left-color: #c99700; }
+.dc-alert-note { background: #eef3f9; border-left-color: #5a6270; }
+
+.dc-needs { padding: 4px 12px 8px; font-size: 11px; color: #4b5563; flex: none; }
+.dc-need {
+  display: inline-block; margin-right: 5px; padding: 2px 6px;
+  background: #eef1f5; border-radius: 3px; font-weight: 600;
+}
+
+/* ---- controls ---- */
+.dc-controls {
+  padding: 7px 10px; border-top: 1px solid #e6e9ee; border-bottom: 1px solid #e6e9ee;
+  display: flex; flex-direction: column; gap: 6px; flex: none; background: #fcfcfd;
+}
+.dc-sorts, .dc-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.dc-controls button {
+  font-size: 11px; padding: 3px 8px; border: 1px solid #d3d7dd; background: #fff;
+  border-radius: 4px; cursor: pointer; color: #374151;
+}
+.dc-controls button:hover { background: #f3f4f6; }
+.dc-controls button.dc-on { background: #12181f; color: #fff; border-color: #12181f; }
+.dc-search {
+  width: 100%; padding: 5px 8px; font-size: 12px; box-sizing: border-box;
+  border: 1px solid #d3d7dd; border-radius: 4px;
+}
+
+/* ---- board rows ---- */
+.dc-list { overflow-y: auto; flex: 1 1 auto; min-height: 120px; }
+.dc-empty { padding: 24px; text-align: center; color: #6b7280; font-size: 12px; }
+.dc-row {
+  display: grid;
+  grid-template-columns: 30px 8px 1fr 44px 34px 26px 42px 38px 34px 8px 22px;
+  align-items: center; gap: 5px;
+  padding: 5px 10px; border-bottom: 1px solid #f0f2f5; cursor: pointer;
+}
+.dc-row:hover { background: #f7f9fc; }
+.dc-row.dc-selected { background: #eaf2fd; }
+.dc-rank { font-weight: 700; font-size: 11px; color: #6b7280; text-align: right; }
+.dc-dot { width: 8px; height: 8px; border-radius: 50%; }
+.dc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-inj {
+  font-size: 9px; font-weight: 700; color: #c62828; background: #fdecea;
+  padding: 1px 3px; border-radius: 3px; margin-left: 5px; vertical-align: middle;
+}
+.dc-profileflag { color: #0b5cad; margin-left: 4px; font-size: 11px; }
+.dc-pos, .dc-team, .dc-tier { font-size: 11px; color: #6b7280; }
+.dc-tier { font-weight: 600; }
+.dc-adp { font-size: 11px; text-align: right; color: #374151; }
+.dc-reach { font-size: 11px; text-align: right; font-weight: 600; color: #6b7280; }
+.dc-reach.dc-good { color: #1f9d4d; }
+.dc-reach.dc-bad { color: #c62828; }
+.dc-avail { font-size: 11px; text-align: right; color: #6b7280; }
+.dc-sev { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.dc-mark {
+  border: 0; background: transparent; color: #b9bfc7; cursor: pointer;
+  font-size: 12px; padding: 0;
+}
+.dc-mark:hover { color: #1f9d4d; }
+
+/* ---- detail ---- */
+.dc-detail { border-top: 2px solid #e6e9ee; max-height: 46vh; overflow-y: auto; flex: none; background: #fcfcfd; }
+.dc-warnings { padding: 8px 10px 0; }
+.dc-warning {
+  border-left: 3px solid #ccc; padding: 4px 8px; margin-bottom: 5px;
+  font-size: 11.5px; background: #fff; border-radius: 0 4px 4px 0;
+}
+.dc-warndetail { color: #4b5563; margin-top: 1px; }
+
+.dc-card { padding: 10px; }
+.dc-cardhead { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.dc-cardname { font-size: 15px; font-weight: 700; }
+.dc-cardsub { font-size: 11px; color: #6b7280; }
+.dc-tag {
+  font-size: 9px; font-weight: 700; color: #fff; padding: 2px 6px;
+  border-radius: 3px; letter-spacing: .4px; white-space: nowrap;
+}
+.dc-cardbody { display: flex; flex-direction: column; gap: 5px; }
+.dc-cardrow { font-size: 12px; display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.dc-cardlabel {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+  color: #6b7280; font-weight: 700; padding-top: 1px;
+}
+.dc-note { color: #6b7280; }
+.dc-flag {
+  font-size: 9px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 5px;
+}
+.dc-flag-new { background: #fff2c4; color: #7a5c00; }
+.dc-flag-first { background: #fbdcf0; color: #8c1a63; }
+
+.dc-profile { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e6e9ee; }
+.dc-profile p { margin: 6px 0; font-size: 12px; line-height: 1.5; }
+.dc-meters { display: flex; gap: 14px; }
+.dc-meter { display: flex; align-items: center; gap: 6px; flex: 1; }
+.dc-meterlabel { font-size: 10px; text-transform: uppercase; color: #6b7280; width: 46px; font-weight: 700; }
+.dc-metertrack { flex: 1; height: 7px; background: #e6e9ee; border-radius: 4px; overflow: hidden; }
+.dc-meterfill { height: 100%; border-radius: 4px; }
+.dc-metervalue { font-size: 10px; color: #6b7280; width: 30px; }
+
+.dc-stats { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e6e9ee; }
+.dc-stats p { margin: 5px 0; font-size: 11.5px; line-height: 1.45; color: #374151; }
+
+.dc-footer {
+  padding: 6px 12px; font-size: 10.5px; color: #6b7280;
+  border-top: 1px solid #e6e9ee; background: #f7f8fa; flex: none;
+}
+.dc-footer a { color: #0b5cad; }
+
+/* ---- in-page badge on ESPN's own rows ---- */
+.dc-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 5px;
+  font: 700 10px -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #fff; border-radius: 3px; vertical-align: middle; cursor: help;
+}
