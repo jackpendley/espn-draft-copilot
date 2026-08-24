@@ -3,6 +3,7 @@
 // if ESPN changes their markup this layer goes quiet rather than breaking the panel.
 
 import { TAG_COLOR, TAG_LABEL } from '../panel/format.js';
+import { send } from '../core/messaging.js';
 
 const MARK = 'data-dc-badged';
 
@@ -23,7 +24,7 @@ const NAME_SELECTORS = [
 let byName = null;
 
 export async function attachBadges() {
-  const res = await new Promise((r) => chrome.runtime.sendMessage({ type: 'dataset' }, r));
+  const res = await send({ type: 'dataset' });
   if (!res?.ok) return;
   byName = new Map();
   for (const p of res.dataset.players) {

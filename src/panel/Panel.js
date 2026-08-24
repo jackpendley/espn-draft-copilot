@@ -4,12 +4,11 @@ import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlan
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
+import { send } from '../core/messaging.js';
 import { PlayerCard } from './PlayerCard.js';
 import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
-const send = (msg) => new Promise((res) => chrome.runtime.sendMessage(msg, res));
-
 export function Panel() {
   const [dataset, setDataset] = useState(null);
   const [config, setConfig] = useState(null);

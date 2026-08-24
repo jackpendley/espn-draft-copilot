@@ -3,8 +3,8 @@ import { useState, useEffect, useMemo } from 'preact/hooks';
 import { parseKeeperPaste, simulatePickOrder } from '../core/keepers.js';
 import { buildIndex, resolve } from '../core/names.js';
 import { DEFAULTS } from '../core/storage.js';
+import { send } from '../core/messaging.js';
 
-const send = (msg) => new Promise((r) => chrome.runtime.sendMessage(msg, r));
 
 function App() {
   const [cfg, setCfg] = useState(null);

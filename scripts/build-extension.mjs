@@ -30,8 +30,10 @@ const common = {
 };
 
 const builds = [
+  // background is declared "type": "module"; the options and standalone pages load as
+  // <script type="module">. The content script is a CLASSIC script, so it must be iife.
   { entryPoints: [join(ROOT, 'src/background/index.js')], outfile: join(OUT, 'background.js'), ...common },
-  { entryPoints: [join(ROOT, 'src/content/index.js')],    outfile: join(OUT, 'content.js'),    ...common },
+  { entryPoints: [join(ROOT, 'src/content/index.js')],    outfile: join(OUT, 'content.js'),    ...common, format: 'iife' },
   { entryPoints: [join(ROOT, 'src/options/options.js')],  outfile: join(OUT, 'options.js'),    ...common },
   { entryPoints: [join(ROOT, 'src/panel/standalone.js')], outfile: join(OUT, 'standalone.js'), ...common },
 ];
