@@ -20,8 +20,30 @@
 }
 .dc-title { font-weight: 700; letter-spacing: .2px; }
 .dc-sub { font-size: 11px; opacity: .68; }
+/* Which feed this panel is on. On Sleeper it says "practice" because the pick numbers
+   are a rehearsal of Sept 3, not the real thing. */
+.dc-chip {
+  margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .6px;
+  padding: 2px 6px; border-radius: 3px; background: rgba(255,255,255,.14); cursor: help;
+}
+.dc-chip-practice { background: #7c4dff; color: #fff; }
+
+.dc-statnote { font-size: 10px; color: #6b7280; margin-top: 2px; cursor: help; }
+
+/* The Sleeper mirror league disagrees with the real one, or the keeper sheet is missing.
+   A warning, never a block. */
+.dc-drift {
+  padding: 8px 12px; background: #fff6e0; color: #7a5c00;
+  border-bottom: 1px solid #f0d9a0; font-size: 11px; line-height: 1.45;
+}
+.dc-drift button {
+  display: block; margin-top: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid #c99700; background: #fff; color: #7a5c00; border-radius: 4px;
+}
+.dc-drift button:hover { background: #fffaf0; }
+
 .dc-close {
-  margin-left: auto; background: transparent; border: 0; color: #fff;
+  background: transparent; border: 0; color: #fff;
   font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; opacity: .8;
 }
 .dc-close:hover { opacity: 1; }

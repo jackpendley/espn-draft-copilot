@@ -1,6 +1,7 @@
 # ESPN Draft Copilot — Joel Smyth's 2026 Draft Guide
 
-Joel Smyth's Draft Guide 2026, keeper-aware, live inside the ESPN draft room.
+Joel Smyth's Draft Guide 2026, keeper-aware, live inside the ESPN draft room —
+and rehearsable on Sleeper before the day.
 
 Built for one specific draft: **Example Keeper League** — 12-team full PPR keeper, snake, **16 rounds**,
 pick 5, September 3 2026, keeping Jaxon Smith-Njigba for a 6th-round pick.
@@ -14,6 +15,7 @@ Roster: QB×1 RB×2 WR×2 TE×1 FLEX×1 DST×1 K×1, BE×7, IR×1.
 ```bash
 npm install
 npm run fetch:players    # pull ESPN's player universe + live ADP
+npm run fetch:sleeper    # pull Sleeper's player list, to map its ids onto ESPN's
 npm run build            # transcribe guide -> dist/dataset.json, then bundle the extension
 ```
 
@@ -132,35 +134,103 @@ Severity is `block` / `warn` / `note` / `good` — and off-plan is only ever a n
 
 ## Draft day sequence (Sept 3)
 
+0. **Before the day:** run at least one full mock on Sleeper (see below). It is the only way
+   to exercise the live feed and the keeper maths together before they matter.
 1. **Morning of:** `npm run fetch:players && npm run build` — ADP moves hard in the final week
 2. `chrome://extensions` → reload the extension
 3. Options → paste the final keeper sheet → set each keeper's draft slot → Save
 4. Check the **Your real picks** card: with everyone's keepers in, those overall numbers
    are what the panel will hold you to
 5. Open the draft room. Refresh the tab if you rebuilt after opening it
-6. Confirm the panel shows your correct pick number before the first pick
+6. Confirm the panel shows your correct pick number before the first pick, and that the chip
+   in its header reads **ESPN** and not `SLEEPER · practice`
 
 During the draft: if the panel ever looks stuck, check the footer — "Live · syncing every 3s"
-means the feed is healthy. An amber bar means refresh the page.
+means the feed is healthy, and it names the feed it's syncing. An amber bar means refresh
+the page.
 
 ---
+
+## Practising on Sleeper
+
+An ESPN mock can't rehearse this tool. We track keepers in a spreadsheet, so ESPN has no idea
+any round is spoken for — and keeper rounds burning out of the snake is the thing every number
+in the panel depends on. A mock with no keepers is a mock with the wrong pick numbers.
+
+Sleeper can reproduce it, so the panel runs there too. **It is the same panel**: same board,
+same ESPN ADP, same keeper-adjusted ADP, same survival percentages, same guardrails, same round
+plan. Only the answer to "who has been picked, and where am I in the order" comes from somewhere
+else.
+
+### Setting up the mirror league
+
+Make a Sleeper league that matches Example:
+
+| | |
+|---|---|
+| Teams | 12 |
+| Rounds | 16 |
+| Scoring | Full PPR |
+| Roster | QB1 RB2 WR2 TE1 FLEX1 DST1 K1 BE7 IR1 |
+| Draft type | Snake, **no 3rd-round reversal** |
+
+Then **draft each keeper by hand in its proper round** — you at R6 for Jaxon Smith-Njigba,
+everyone else at theirs. That's the whole trick: the panel recognises those picks from your
+keeper sheet, takes them back out of the feed, and renumbers everything after them, exactly the
+way Sept 3 is modelled.
+
+Anything the mirror gets wrong — wrong team count, linear instead of snake, reversal left on —
+shows up as an amber bar across the top of the panel rather than as quietly wrong numbers.
+
+### Running one
+
+1. Open the draft room. The panel mounts and reads the draft ID straight out of the URL, so a
+   throwaway mock needs no setup at all
+2. Options → **Sleeper practice draft** → put your Sleeper username in and hit
+   **Connect to Sleeper**. Your draft slot is read off the draft order
+3. Draft. The header says `SLEEPER · practice` so a tab left open overnight can never be
+   mistaken for the real thing
+
+**Two pick numbers.** Sleeper's clock counts the keeper picks; the panel takes them out. So once
+N keepers are gone the two run exactly N apart, and the status strip shows Sleeper's number
+underneath its own. The panel's number is the one that will be true on draft day.
+
+Reset the draft and run it again as many times as you like — the draft ID survives a reset.
 
 ## Testing before the draft room opens
 
 ESPN doesn't open the real draft room until close to your scheduled time, so
-`fantasy.espn.com/football/draft?leagueId=…` is a dead link until then. Two ways to test anyway:
+`fantasy.espn.com/football/draft?leagueId=…` is a dead link until then. Three ways to test anyway:
 
-**Pick-sync — replay last season.** Options page → **Replay 2025 draft**. Your league's completed
-2025 draft runs through the exact same path the live feed will use: same auth, same parsing, same
-player-id mapping. If it comes back with real player names, the only untested link left is ESPN
-populating the feed live.
+**A full dress rehearsal — Sleeper.** See above. This is the only way to exercise the live pick
+feed, the keeper maths, the alerts and the guardrails together, against picks arriving in real
+time. Do this one.
 
-**Panel mount and badges — use a mock draft.** `fantasy.espn.com/football/mockdraftlobby`. The
-panel mounts there and badges attach to ESPN's player rows. Note that a mock is a *different*
-league, so the pick counter will not advance — it's still polling your real league. That's
-expected; use the replay above for sync and the mock for everything visual.
+**Pick-sync — replay a completed draft.** Options page → **Replay 2025 ESPN draft** runs your
+league's completed 2025 draft through the exact path the live feed will use: same auth, same
+parsing, same player-id mapping. **Replay the Sleeper draft** does the same for Sleeper and is
+what proves the `sleeperId → espnId` map works. Either coming back with real player names means
+the only untested link left is the site populating the feed live.
 
-To see the panel on any other ESPN page, append `?copilot=1` to the URL.
+**Panel mount and badges — an ESPN mock draft.** `fantasy.espn.com/football/mockdraftlobby`. The
+panel mounts there and badges attach to ESPN's player rows. A mock is a *different* league, so
+the pick counter will not advance — it's still polling your real league. Use it for the visual
+check only.
+
+To see the panel on any other ESPN or Sleeper page, append `?copilot=1` to the URL.
+
+### How Sleeper players are matched to ESPN's
+
+Sleeper keys players by its own string ids (`"9488"`, and the team abbreviation `"HOU"` for
+defenses), so a build-time map translates them to the ESPN ids the whole dataset is keyed on.
+Sleeper does publish an `espn_id` field, but it's null for about half of all active players —
+including Jaxon Smith-Njigba — so it's a tiebreak, not the index. Defenses map by team, exactly.
+Everything else falls back to the same name matcher the guide build uses, with **no fuzzy
+matching**: over 4,000 players it confidently puts Roddy White on Cody White's id, and striking
+the wrong name off the board mid-draft is worse than not striking one at all.
+
+An unmatched pick still counts toward the pick number; it just doesn't cross anyone off. The
+build fails loudly if any player on Joel's board becomes unreachable.
 
 ---
 
@@ -179,7 +249,9 @@ reload the extension *and* refresh the ESPN tab.
 ## If something breaks on draft night
 
 1. **Panel gone but ESPN fine** — options page → **Open standalone board**. Same board in its own
-   window, still syncing picks from ESPN's API. Draft in the ESPN window as normal.
+   window, still syncing picks from ESPN's API. Draft in the ESPN window as normal. (The
+   standalone board has no page to read the feed from, so it uses whichever one the
+   **Draft feed** toggle is set to — make sure that says ESPN.)
 2. **Pick sync stalls** — hit ✓ on players as they go. Manual marks override the API.
 3. **You veto a pick as commissioner** — clear manual overrides in options; the API is the source
    of truth and will re-sync within 3 seconds.
@@ -193,20 +265,27 @@ reload the extension *and* refresh the ESPN tab.
 ```
 data/guide/       hand-transcribed guide, one file per section (source of truth, diffable vs the PDF)
 data/overrides/   name aliases + the build's unmatched report
-scripts/          fetch ESPN players, build the dataset, bundle the extension
+scripts/          fetch ESPN + Sleeper players, build the dataset, bundle the extension
 src/core/         pure logic: keepers, board, rules, names (no DOM, no chrome.*)
+                  + the two platform adapters, both returning one shape
 src/panel/        Preact UI + the standalone fallback page
-src/content/      panel mount + ESPN row badges
-src/background/   service worker: all ESPN network access
-src/options/      league config + keeper editor
-test/             37 tests over core logic and panel rendering
+src/content/      panel mount + player-row badges
+src/background/   service worker: all network access, dispatching on platform
+src/options/      league config + keeper editor + both replay diagnostics
+test/             84 tests over core logic, both adapters, and panel rendering
 ```
+
+**The platform seam is one file deep.** `src/core/espn-api.js` and `src/core/sleeper-api.js`
+return the same two shapes, `src/background/index.js` picks between them, and
+`src/core/platform.js` holds the per-site URL and DOM selectors. `board.js`, `rules.js`,
+`keepers.js` and `names.js` have no idea there is more than one draft site.
 
 ## Commands
 
 ```bash
-npm test                 # 37 tests
+npm test                 # 84 tests
 npm run fetch:players    # refresh ESPN ADP
+npm run fetch:sleeper    # refresh Sleeper's player list (only needed when rosters churn)
 npm run build:data       # rebuild dataset; FAILS LOUDLY on any unresolved guide name
 npm run build:ext        # bundle
 npm run build            # both

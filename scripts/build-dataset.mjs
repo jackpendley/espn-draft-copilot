@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import * as P from './parse-guide.mjs';
 import { buildIndex, resolve, normalizeName } from '../src/core/names.js';
+import { buildSleeperIdMap } from '../src/core/sleeper-ids.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const G = (f) => join(ROOT, 'data/guide', f);
 const CACHE = join(ROOT, 'data/cache/espn-players.json');
+const SLEEPER_CACHE = join(ROOT, 'data/cache/sleeper-players.json');
 
 if (!existsSync(CACHE)) {
   console.error('Missing data/cache/espn-players.json -- run `npm run fetch:players` first.');
@@ -140,12 +142,30 @@ for (const pc of playcaller) {
   teamCtx[pc.team] = { ...(teamCtx[pc.team] || { team: pc.team }), playcaller: pc };
 }
 
+// ---- sleeper id map -----------------------------------------------------------
+// Lets a Sleeper mock draft cross players off this (ESPN-keyed) board. Optional: someone
+// who only ever drafts on ESPN can build without it, and the Sleeper feed then simply
+// resolves nothing. Never fails the build -- unlike a guide name, an unmatched Sleeper
+// player is expected (their dump carries 4000+ players; ESPN carries ~1000).
+let sleeperIds = { map: {}, matched: 0, unmatched: [], byHow: {}, collisions: [] };
+if (existsSync(SLEEPER_CACHE)) {
+  const slCache = JSON.parse(readFileSync(SLEEPER_CACHE, 'utf8'));
+  sleeperIds = buildSleeperIdMap(slCache.players, espn.players, aliases);
+} else {
+  console.warn('No data/cache/sleeper-players.json -- run `npm run fetch:sleeper` to enable Sleeper drafts.');
+}
+
+// The number that actually matters: every player on Joel's board must be reachable from a
+// Sleeper pick, or a rehearsal would leave them sitting there after someone took them.
+const mappedEspnIds = new Set(Object.values(sleeperIds.map));
+
 // ---- report -------------------------------------------------------------------
 const out = {
   builtAt: new Date().toISOString(),
   espnFetchedAt: espn.fetchedAt,
   source: "Joel Smyth's Draft Guide 2026 (last update August 23rd)",
   scoring: 'PPR',
+  idMap: { sleeper: sleeperIds.map },
   strategy,
   top50: top50.stats,
   teamCtx,
@@ -167,6 +187,23 @@ if (unmatched.length) {
   reportLines.push('UNMATCHED (add to data/overrides/aliases.json):');
   for (const u of unmatched) reportLines.push(`  [${u.source}] "${u.name}" (${u.pos})  nearest: ${u.candidates.join(', ') || 'none'}`);
 }
+
+// Sleeper's dump carries four times as many players as ESPN does, so most of its misses
+// are simply people ESPN has no row for. Only the guide's own players matter.
+const boardUnreachable = out.players.filter((p) => !mappedEspnIds.has(p.espnId));
+if (Object.keys(sleeperIds.map).length) {
+  reportLines.push('', '## sleeper id map', `  mapped ${sleeperIds.matched} sleeper ids`
+    + `  (${Object.entries(sleeperIds.byHow).map(([k, v]) => `${k}:${v}`).join(' ')})`);
+  if (sleeperIds.collisions.length) {
+    reportLines.push('  same-name collisions, rostered player kept:');
+    for (const c of sleeperIds.collisions) reportLines.push(`    ${c.kept}  over  ${c.dropped.join(', ')}`);
+  }
+  if (boardUnreachable.length) {
+    reportLines.push('  GUIDE PLAYERS WITH NO SLEEPER ID (they will not be crossed off in a Sleeper mock):');
+    for (const p of boardUnreachable) reportLines.push(`    ${p.name} (${p.pos} ${p.team})`);
+  }
+}
+
 writeFileSync(join(ROOT, 'data/overrides/unmatched-report.txt'),
   reportLines.join('\n') || 'Clean build: every guide name resolved to an ESPN id.\n');
 
@@ -175,6 +212,8 @@ console.log(`  with a PPR board rank: ${out.players.filter((p) => p.joel.pprRank
 console.log(`  with adjusted PPG:     ${out.players.filter((p) => p.joel.adjPpg25 != null).length}`);
 console.log(`  with luck metric:      ${out.players.filter((p) => p.joel.luck).length}`);
 console.log(`  with a profile card:   ${out.players.filter((p) => p.joel.profile).length}`);
+console.log(`sleeper ids mapped: ${sleeperIds.matched}`
+  + (boardUnreachable.length ? `  -- ${boardUnreachable.length} guide players NOT reachable from Sleeper` : '  (every guide player reachable)'));
 console.log(`structural problems: ${problems.length}`);
 console.log(`fuzzy matches: ${fuzzy.length}   unmatched: ${unmatched.length}`);
 if (problems.length || unmatched.length) {

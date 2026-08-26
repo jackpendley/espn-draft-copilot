@@ -54,6 +54,29 @@ test('panel renders without throwing before any data has loaded', async () => {
   const { Panel } = await import('../src/panel/Panel.js');
   const html = renderToString(h(Panel));
   assert.match(html, /Draft Copilot/);
+  // Default feed is the real one, so nothing should suggest a rehearsal.
+  assert.match(html, /ESPN/);
+  assert.ok(!/practice/.test(html));
+});
+
+test('an empty keeper sheet is called out, not silently computed around', async () => {
+  // The quiet failure: with no keepers the board still renders perfectly, it is just
+  // showing the pick numbers of a league nobody keeps anyone in.
+  stubChrome();
+  const { Panel } = await import('../src/panel/Panel.js');
+  const html = renderToString(h(Panel));
+  // Nothing has loaded yet in a synchronous render, so config is null and the warning is
+  // correctly suppressed -- it must never flash before the sheet has been read.
+  assert.ok(!/No keepers\./.test(html));
+});
+
+test('the panel says out loud when it is on the practice feed', async () => {
+  // The chip is the thing that stops a Sleeper tab left open overnight from being
+  // mistaken for the real draft room on Sept 3.
+  stubChrome();
+  const { Panel } = await import('../src/panel/Panel.js');
+  const html = renderToString(h(Panel, { platform: 'sleeper', draftId: '123456789012' }));
+  assert.match(html, /SLEEPER · practice/);
 });
 
 test('PlayerCard renders every section for a fully-populated player', async () => {

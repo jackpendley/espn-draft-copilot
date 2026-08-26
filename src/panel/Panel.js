@@ -4,13 +4,21 @@ import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlan
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
+import { ESPN, SLEEPER, platformLabel } from '../core/platform.js';
 import { send } from '../core/messaging.js';
 import { extensionAlive, safeGet, safeSet, onStorageLocal } from '../core/runtime.js';
 import { PlayerCard } from './PlayerCard.js';
 import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
-export function Panel() {
+
+/**
+ * @param platform  'espn' (the real draft) | 'sleeper' (rehearsal). The content script
+ *                  decides from the hostname; the standalone page falls back to config.
+ * @param draftId   Sleeper only: read straight out of the draft room URL, so a throwaway
+ *                  mock needs no configuration.
+ */
+export function Panel({ platform: platformProp = null, draftId: draftIdProp = null } = {}) {
   const [dataset, setDataset] = useState(null);
   const [config, setConfig] = useState(null);
   const [league, setLeague] = useState(null);
@@ -26,6 +34,13 @@ export function Panel() {
   const [collapsed, setCollapsed] = useState(false);
   const [stale, setStale] = useState(false);   // orphaned by an extension reload
 
+  // The content script knows which site it mounted on. The standalone page does not, so
+  // it falls back to whatever the options page last selected.
+  const platform = platformProp || config?.platform || ESPN;
+  const isSleeper = platform === SLEEPER;
+  const draftId = draftIdProp || config?.sleeperDraftId || null;
+  const feed = { platform, ...(isSleeper ? { draftId } : {}) };
+
   // ---- load static things once ----
   useEffect(() => {
     (async () => {
@@ -35,36 +50,67 @@ export function Panel() {
       setConfig(cfg);
       setSortMode(cfg.sortMode || 'value');
       setHideAvoid(!!cfg.hideAvoid);
-      const l = await send({ type: 'league' });
-      if (l?.ok) setLeague(l.league);
-      else setError((e) => e || l?.error || null);
     })();
     return onStorageLocal(() => {
       safeGet(null).then((c) => setConfig({ ...DEFAULTS, ...c }));
     });
   }, []);
 
+  // Remember the draft we mounted on, so the options page and the standalone board can
+  // follow along without being told the id by hand. Sleeper mocks get a new one each time.
+  useEffect(() => {
+    if (!isSleeper || !draftIdProp || !config) return;
+    if (config.sleeperDraftId === draftIdProp && config.platform === SLEEPER) return;
+    safeSet({ platform: SLEEPER, sleeperDraftId: draftIdProp });
+  }, [isSleeper, draftIdProp, config?.sleeperDraftId, config?.platform]);
+
+  // ---- league settings ----
+  useEffect(() => {
+    if (!config) return;
+    if (isSleeper ? !draftId : !config.leagueId) return;
+    let alive = true;
+    (async () => {
+      const l = await send({ type: 'league', ...feed });
+      if (!alive) return;
+      if (l?.ok) { setLeague(l.league); setError(null); }
+      else setError(l?.error || null);
+    })();
+    return () => { alive = false; };
+  }, [platform, draftId, config?.leagueId]);
+
   // ---- poll live picks ----
   useEffect(() => {
-    if (!config?.leagueId) return;
+    if (!config) return;
+    if (isSleeper ? !draftId : !config.leagueId) return;
     let alive = true;
     let id = null;
     const stop = () => { alive = false; if (id) clearInterval(id); id = null; };
     const tick = async () => {
       if (!extensionAlive()) { setStale(true); stop(); return; }
-      const r = await send({ type: 'picks' });
+      const r = await send({ type: 'picks', ...feed });
       if (!alive) return;
       if (r?.invalidated) { setStale(true); stop(); return; }
-      if (r?.ok) setDraft({ picks: r.picks, inProgress: r.inProgress, drafted: r.drafted });
+      if (r?.ok) {
+        setDraft({
+          picks: r.picks, inProgress: r.inProgress, drafted: r.drafted,
+          keeperPicks: r.keeperPicks || [],
+          rawPickCount: r.rawPickCount ?? r.picks.length,
+        });
+      }
     };
     tick();
     id = setInterval(tick, 3000);
     return stop;
-  }, [config?.leagueId]);
+    // Deliberately NOT keyed on the keeper list: the worker reads that from storage
+    // itself, and every ✓ mark writes storage -- re-keying would tear the poll down and
+    // rebuild it on each one, mid-draft.
+  }, [platform, draftId, config?.leagueId]);
 
   const teams = league?.teams || config?.teams || 12;
   const rounds = league?.rounds || config?.rounds || 15;
-  const mySlot = config?.myTeamSlot || null;
+  // On Sleeper the mirror league can deal you a different seat than ESPN did.
+  const mySlot = (isSleeper ? config?.sleeperSlot : config?.myTeamSlot) || null;
+  const snake = league?.raw?.type ? league.raw.type === 'snake' : true;
 
   // ---- resolve keepers to espnIds ----
   const keepers = useMemo(() => {
@@ -73,6 +119,31 @@ export function Panel() {
   }, [dataset, config?.keepers]);
 
   const keptIds = useMemo(() => new Set(keepers.map((k) => k.espnId)), [keepers]);
+
+  // Everyone off the board: the sheet's keepers plus any the Sleeper board is holding.
+  const allKeptIds = useMemo(() => {
+    const s = new Set(keptIds);
+    for (const k of draft.keeperPicks || []) s.add(k.playerId);
+    return s;
+  }, [keptIds, draft.keeperPicks]);
+
+  // Where a keeper was ACTUALLY taken beats where the sheet says. On Sleeper the keepers
+  // are drafted by hand, so the feed tells us the true slot even if the mirror league's
+  // draft order doesn't line up with ESPN's.
+  const observedKeeperSlots = useMemo(() => {
+    const m = new Map();
+    for (const k of draft.keeperPicks || []) {
+      if (k.teamSlot && k.round) m.set(k.playerId, { teamSlot: k.teamSlot, round: k.round });
+    }
+    return m;
+  }, [draft.keeperPicks]);
+
+  // Keepers sitting on a Sleeper board that aren't in the sheet yet -- other managers'
+  // keepers as they get confirmed. They burn their round exactly the same way, and their
+  // early-round ones are what move YOUR first picks.
+  const boardOnlyKeepers = useMemo(() => (
+    (draft.keeperPicks || []).filter((k) => !keptIds.has(k.playerId))
+  ), [draft.keeperPicks, keptIds]);
 
   const draftedIds = useMemo(() => {
     // D/ST ids are negative in ESPN's data; 0 means no selection. Only 0 is a skip.
@@ -85,10 +156,18 @@ export function Panel() {
   // ---- pick order with keeper slots removed ----
   const order = useMemo(
     () => simulatePickOrder({
-      teams, rounds,
-      keeperSlots: keepers.filter((k) => k.teamSlot && k.round).map((k) => ({ teamSlot: k.teamSlot, round: k.round, player: k.player })),
+      teams, rounds, snake,
+      keeperSlots: [
+        ...keepers.map((k) => ({
+          teamSlot: k.teamSlot, round: k.round,
+          ...observedKeeperSlots.get(k.espnId),   // where it was really taken wins
+          player: k.player,
+        })),
+        // Sleeper only: keepers read off the board that the sheet doesn't know about yet.
+        ...boardOnlyKeepers.map((k) => ({ teamSlot: k.teamSlot, round: k.round, player: k.playerId })),
+      ].filter((k) => k.teamSlot && k.round),
     }),
-    [teams, rounds, keepers],
+    [teams, rounds, snake, keepers, observedKeeperSlots, boardOnlyKeepers],
   );
 
   const currentOverall = draftedIds.size + 1;
@@ -100,10 +179,10 @@ export function Panel() {
   const rows = useMemo(() => {
     if (!dataset) return [];
     return buildBoard(dataset, {
-      draftedIds, keptIds, currentOverall,
+      draftedIds, keptIds: allKeptIds, currentOverall,
       myNextOverall: onTheClock ? (nextInfo?.pickAfter?.overall ?? null) : myNextOverall,
     });
-  }, [dataset, draftedIds, keptIds, currentOverall, myNextOverall, onTheClock]);
+  }, [dataset, draftedIds, allKeptIds, currentOverall, myNextOverall, onTheClock]);
 
   const visible = useMemo(
     () => sortBoard(filterBoard(rows, { positions, hideAvoid, targetsOnly, search }), sortMode).slice(0, 120),
@@ -123,11 +202,17 @@ export function Panel() {
   const myRoster = useMemo(() => {
     if (!dataset || !mySlot) return [];
     const byId = new Map(dataset.players.map((p) => [p.espnId, p]));
-    const mine = draft.picks.filter((p) => order.picks.find((o) => o.overall === p.overall)?.teamSlot === mySlot);
+    // Sleeper hands us the draft slot on every pick; ESPN doesn't, so there we read it
+    // back off the simulated grid by overall number.
+    const mine = draft.picks.filter((p) => (
+      p.teamSlot != null ? p.teamSlot === mySlot
+        : order.picks.find((o) => o.overall === p.overall)?.teamSlot === mySlot
+    ));
     const fromPicks = mine.map((p) => byId.get(p.playerId)).filter(Boolean);
     const fromKeepers = keepers.filter((k) => k.teamSlot === mySlot).map((k) => byId.get(k.espnId)).filter(Boolean);
-    return [...fromKeepers, ...fromPicks];
-  }, [dataset, draft.picks, order.picks, mySlot, keepers]);
+    const fromBoard = boardOnlyKeepers.filter((k) => k.teamSlot === mySlot).map((k) => byId.get(k.playerId)).filter(Boolean);
+    return [...fromKeepers, ...fromBoard, ...fromPicks];
+  }, [dataset, draft.picks, order.picks, mySlot, keepers, boardOnlyKeepers]);
 
   // His plan is written for 15 rounds; this league has its own count.
   const roundPlan = useMemo(
@@ -135,6 +220,23 @@ export function Panel() {
     [dataset, rounds],
   );
   const planTarget = roundPlan.find((p) => p.round === currentRound)?.target;
+
+  // A rehearsal is only worth anything if the mirror league matches the real one. Warn,
+  // never block -- a 15-round mock is still a useful test of everything except round 16.
+  const drift = useMemo(() => {
+    if (!isSleeper || !league) return [];
+    const out = [];
+    if (config?.teams && league.teams !== config.teams) out.push(`${league.teams} teams, not ${config.teams}`);
+    if (config?.rounds && league.rounds !== config.rounds) out.push(`${league.rounds} rounds, not ${config.rounds}`);
+    if (league.raw?.type && league.raw.type !== 'snake') out.push(`${league.raw.type} draft, not snake`);
+    if (league.raw?.reversalRound) out.push(`3rd-round reversal is on`);
+    return out;
+  }, [isSleeper, league, config?.teams, config?.rounds]);
+
+  // Sleeper's own clock counts the keepers this panel has taken back out, so the two
+  // numbers diverge by exactly the number of keepers already drafted. Count the raw feed,
+  // not the surviving picks, or the note is itself short by that same number.
+  const sleeperNow = isSleeper && draft.rawPickCount ? draft.rawPickCount + 1 : null;
   const needs = league?.slotCounts ? rosterNeeds(myRoster, league.slotCounts) : [];
 
   const markDrafted = useCallback(async (espnId) => {
@@ -150,8 +252,19 @@ export function Panel() {
     h('div', { class: 'dc-header' },
       h('span', { class: 'dc-title' }, 'Draft Copilot'),
       h('span', { class: 'dc-sub' }, "Joel Smyth's 2026 Guide · PPR"),
+      h('span', {
+        class: `dc-chip ${isSleeper ? 'dc-chip-practice' : ''}`,
+        title: isSleeper
+          ? 'Rehearsal on Sleeper. Same board, same ESPN ADP, same keeper maths — only the pick feed differs.'
+          : 'Live ESPN league feed.',
+      }, isSleeper ? 'SLEEPER · practice' : 'ESPN'),
       h('button', { class: 'dc-close', onClick: () => setCollapsed(true), title: 'Collapse' }, '–'),
     ),
+
+    drift.length > 0 && h('div', { class: 'dc-drift' },
+      h('strong', null, 'This Sleeper draft does not match your league: '),
+      drift.join(' · '),
+      '. The pick numbers below follow this draft, so they will not match Sept 3.'),
 
     stale && h('div', { class: 'dc-stale' },
       h('strong', null, 'This panel is out of date. '),
@@ -161,15 +274,41 @@ export function Panel() {
     !stale && error && h('div', { class: 'dc-error' }, error,
       h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Open options')),
 
-    !config?.leagueId && h('div', { class: 'dc-error' },
-      'No league configured yet. ',
-      h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Set league + keepers')),
+    config && (isSleeper ? !draftId : !config.leagueId) && h('div', { class: 'dc-error' },
+      isSleeper
+        ? "Couldn't read a draft ID from this page. Open the draft room itself (sleeper.com/draft/nfl/…), or paste the ID in options. "
+        : 'No league configured yet. ',
+      h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Open options')),
+
+    // An empty keeper sheet is the quiet failure: every number below is still computed,
+    // just for a league where nobody kept anyone. It looks completely normal.
+    config && allKeptIds.size === 0 && h('div', { class: 'dc-drift' },
+      h('strong', null, 'No keepers. '),
+      'Pick numbers, adjusted ADP and survival percentages are all being computed as if '
+      + 'nobody kept anyone — which is not this league. ',
+      h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Paste the keeper sheet')),
+
+    // Board keepers work for the rehearsal, but ESPN has no board to read on Sept 3.
+    boardOnlyKeepers.length > 0 && h('div', { class: 'dc-drift' },
+      h('strong', null, `${boardOnlyKeepers.length} keeper${boardOnlyKeepers.length > 1 ? 's' : ''} read off the Sleeper board. `),
+      'Their rounds are being burned correctly here. They are not in your keeper sheet '
+      + 'though, and ESPN has no board to read them from — add them before Sept 3.'),
+
+    isSleeper && mySlot == null && h('div', { class: 'dc-drift' },
+      h('strong', null, 'No draft slot set for Sleeper. '),
+      'The board still works, but "your next pick", the survival percentages and the round '
+      + 'plan all need to know which seat you are in. Set your Sleeper username in options '
+      + 'and it will be read off the draft order.'),
 
     // ---- status strip ----
     h('div', { class: 'dc-status' },
       h('div', { class: 'dc-statbox' },
         h('div', { class: 'dc-statlabel' }, 'On the clock'),
         h('div', { class: 'dc-statvalue' }, `#${currentOverall}`, h('span', { class: 'dc-statsub' }, ` R${currentRound}`)),
+        sleeperNow && sleeperNow !== currentOverall && h('div', {
+          class: 'dc-statnote',
+          title: 'Sleeper counts the keeper picks; this panel takes them back out, the way the real draft will.',
+        }, `Sleeper #${sleeperNow}`),
       ),
       mySlot && nextInfo && h('div', { class: `dc-statbox ${onTheClock ? 'dc-you' : ''}` },
         h('div', { class: 'dc-statlabel' }, onTheClock ? 'YOUR PICK' : 'Your next'),
@@ -180,9 +319,13 @@ export function Panel() {
         h('div', { class: 'dc-statlabel' }, `R${currentRound} plan`),
         h('div', { class: 'dc-statvalue dc-plan' }, planTarget),
       ),
-      keepers.length > 0 && h('div', { class: 'dc-statbox' },
+      allKeptIds.size > 0 && h('div', { class: 'dc-statbox' },
         h('div', { class: 'dc-statlabel' }, 'Keepers'),
-        h('div', { class: 'dc-statvalue' }, keepers.length),
+        h('div', { class: 'dc-statvalue' }, allKeptIds.size,
+          boardOnlyKeepers.length > 0 && h('span', {
+            class: 'dc-statsub',
+            title: `${boardOnlyKeepers.length} read off the Sleeper board, not in your sheet yet`,
+          }, ` +${boardOnlyKeepers.length} board`)),
       ),
     ),
 
@@ -277,6 +420,7 @@ export function Panel() {
 
     h('div', { class: 'dc-footer' },
       draft.inProgress ? 'Live · syncing every 3s' : (draft.drafted ? 'Draft complete' : 'Draft not started'),
+      ` · ${platformLabel(platform)}`,
       ' · ',
       h('a', { href: '#', onClick: (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); } }, 'keepers & settings'),
     ),

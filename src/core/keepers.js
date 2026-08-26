@@ -68,12 +68,13 @@ function splitCsv(line) {
  * @param teams        number of teams (12)
  * @param rounds       number of rounds (15)
  * @param keeperSlots  [{ teamSlot, round, player }] -- teamSlot is the 1-based draft position
+ * @param snake        false for a linear draft (Sleeper offers both)
  * @returns {
  *   slots:  every (round, teamSlot) in snake order, each flagged if a keeper burned it
  *   picks:  the live pick sequence, renumbered 1..N with keeper slots removed
  * }
  */
-export function simulatePickOrder({ teams, rounds, keeperSlots = [] }) {
+export function simulatePickOrder({ teams, rounds, keeperSlots = [], snake = true }) {
   const burned = new Map(); // "round:teamSlot" -> keeper
   for (const k of keeperSlots) burned.set(`${k.round}:${k.teamSlot}`, k);
 
@@ -81,7 +82,9 @@ export function simulatePickOrder({ teams, rounds, keeperSlots = [] }) {
   for (let round = 1; round <= rounds; round++) {
     const order = [];
     for (let i = 1; i <= teams; i++) order.push(i);
-    if (round % 2 === 0) order.reverse();          // snake
+    // Snake unless told otherwise. Sleeper also offers linear drafts, where round 2 deals
+    // in the same order as round 1; getting this wrong silently misplaces every pick.
+    if (snake && round % 2 === 0) order.reverse();
     for (const teamSlot of order) {
       const keeper = burned.get(`${round}:${teamSlot}`) || null;
       slots.push({ round, teamSlot, keeper, isKeeper: !!keeper });

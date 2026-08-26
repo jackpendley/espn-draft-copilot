@@ -1,25 +1,37 @@
-// Mounts the panel into the ESPN draft room and decorates ESPN's own player rows.
-// The badge layer is strictly optional: if ESPN's markup shifts, badges silently stop
+// Mounts the panel into a draft room and decorates the site's own player rows.
+// The badge layer is strictly optional: if the site's markup shifts, badges silently stop
 // and the panel is untouched.
+//
+// Runs on two sites: ESPN, where the real draft happens, and Sleeper, which is where the
+// whole thing gets rehearsed with keepers in their proper rounds. Which one we're on is
+// decided once, here, and passed down -- nothing below this file sniffs the URL.
 
 import { h, render } from 'preact';
 import { Panel } from '../panel/Panel.js';
 import { attachBadges } from './badges.js';
 import { installFetchRelay } from '../core/espn-fetch.js';
 import { extensionAlive } from '../core/runtime.js';
+import { PLATFORMS, platformForHost, ESPN, SLEEPER } from '../core/platform.js';
+import { draftIdFromUrl } from '../core/sleeper-constants.js';
 
 const HOST_ID = 'draft-copilot-root';
+const platform = platformForHost(location.hostname);
 
 // Register this before anything else: the service worker relies on any ESPN tab,
-// draft room or not, to make same-site requests on its behalf.
-installFetchRelay();
+// draft room or not, to make same-site requests on its behalf. It exists solely for
+// ESPN's SameSite cookie problem -- Sleeper's API is public, so it has nothing to do there.
+if (platform === ESPN) installFetchRelay();
 
 function isDraftRoom() {
-  // ?copilot=1 force-mounts anywhere on fantasy.espn.com, for pre-draft dry runs.
+  if (!platform) return false;
+  // ?copilot=1 force-mounts anywhere on either site, for pre-draft dry runs.
   if (new URLSearchParams(location.search).get('copilot') === '1') return true;
-  return /\/football\/(draft|mockdraft|mockdraftlobby)/.test(location.pathname)
-      || document.querySelector('.draft-columns, [class*="draftContainer"], [class*="PlayerTable"]') != null;
+  return PLATFORMS[platform].isDraftRoom(location, document);
 }
+
+// The draft id is in the URL of every Sleeper draft room, including a throwaway mock, so
+// a fresh mock needs no configuration at all.
+const draftId = () => (platform === SLEEPER ? draftIdFromUrl(location.href) : null);
 
 function mount() {
   if (document.getElementById(HOST_ID)) return;
@@ -34,10 +46,10 @@ function mount() {
   host.appendChild(shell);
   makeDraggable(shell);
 
-  render(h(Panel), shell);
+  render(h(Panel, { platform, draftId: draftId() }), shell);
 
   try {
-    attachBadges();
+    attachBadges(platform);
   } catch (err) {
     console.warn('[Draft Copilot] badge layer disabled:', err.message);
   }

@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Joel Smyth's 2026 Draft Guide, live inside the ESPN draft room",
+  "description": "Joel Smyth's 2026 Draft Guide, live inside the ESPN draft room (and rehearsable on Sleeper)",
   "scripts": {
     "fetch:players": "node scripts/fetch-espn-players.mjs",
+    "fetch:sleeper": "node scripts/fetch-sleeper-players.mjs",
     "build:data": "node scripts/build-dataset.mjs",
     "build:ext": "node scripts/build-extension.mjs",
     "build": "npm run build:data && npm run build:ext",
