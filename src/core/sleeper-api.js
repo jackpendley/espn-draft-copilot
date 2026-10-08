@@ -6,6 +6,7 @@
 // board.js / rules.js / keepers.js / Panel.js cannot tell the two platforms apart.
 // Sleeper's API is public and CORS-open, so these are plain fetches -- no tab relay.
 
+import { rateLimited } from './errors.js';
 import { draftUrl, draftPicksUrl, userUrl } from './sleeper-constants.js';
 
 async function getJson(url) {
@@ -17,7 +18,7 @@ async function getJson(url) {
   }
   if (res.status === 404) throw new Error('Sleeper has no draft with that ID. Check the ID from the draft room URL.');
   // Tagged distinctly so the poll loop can back off hard instead of just retrying fast.
-  if (res.status === 429) throw new Error('Sleeper 429: rate limited');
+  if (res.status === 429) throw rateLimited('Sleeper');
   if (!res.ok) throw new Error(`Sleeper returned HTTP ${res.status}.`);
   const body = await res.json();
   if (body == null) throw new Error('Sleeper returned an empty response for that ID.');
