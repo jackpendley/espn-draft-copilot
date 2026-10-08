@@ -72,7 +72,7 @@ test('an empty keeper sheet is called out, not silently computed around', async 
 
 test('the panel says out loud when it is on the practice feed', async () => {
   // The chip is the thing that stops a Sleeper tab left open overnight from being
-  // mistaken for the real draft room on Sept 3.
+  // mistaken for the real draft room on draft day.
   stubChrome();
   const { Panel } = await import('../src/panel/Panel.js');
   const html = renderToString(h(Panel, { platform: 'sleeper', draftId: '123456789012' }));

@@ -339,7 +339,7 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     drift.length > 0 && h('div', { class: 'dc-drift' },
       h('strong', null, 'This Sleeper draft does not match your league: '),
       drift.join(' · '),
-      '. The pick numbers below follow this draft, so they will not match Sept 3.'),
+      '. The pick numbers below follow this draft, so they will not match draft day.'),
 
     stale && h('div', { class: 'dc-stale' },
       h('strong', null, 'This panel is out of date. '),
@@ -372,11 +372,11 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
       + 'nobody kept anyone — which is not this league. ',
       h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Paste the keeper sheet')),
 
-    // Board keepers work for the rehearsal, but ESPN has no board to read on Sept 3.
+    // Board keepers work for the rehearsal, but ESPN has no board to read on draft day.
     boardOnlyKeepers.length > 0 && h('div', { class: 'dc-drift' },
       h('strong', null, `${boardOnlyKeepers.length} keeper${boardOnlyKeepers.length > 1 ? 's' : ''} read off the Sleeper board. `),
       'Their rounds are being burned correctly here. They are not in your keeper sheet '
-      + 'though, and ESPN has no board to read them from — add them before Sept 3.'),
+      + 'though, and ESPN has no board to read them from — add them before draft day.'),
 
     isSleeper && mySlot == null && h('div', { class: 'dc-drift' },
       h('strong', null, 'No draft slot set for Sleeper. '),

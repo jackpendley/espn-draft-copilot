@@ -216,7 +216,7 @@ export function App({ initialConfig = null } = {}) {
         'Set up a Sleeper league that mirrors yours — 12 teams, 16 rounds, full PPR, '
         + 'QB1 RB2 WR2 TE1 FLEX1 DST1 K1 BE7 IR1, snake, no 3rd-round reversal — then draft '
         + 'each keeper by hand in its proper round. The panel takes those picks back out and '
-        + 'renumbers the rest, exactly as it will on Sept 3, so every overall number you see '
+        + 'renumbers the rest, exactly as it will on draft day, so every overall number you see '
         + 'is the number you would have seen in the real draft.'),
       h('div', { class: 'grid' },
         h('div', null, h('label', null, 'Sleeper draft ID'),
@@ -387,7 +387,7 @@ export function App({ initialConfig = null } = {}) {
             + 'the snake, so every pick after them moves up. ',
             h('strong', null, 'These live only in this Sleeper draft'),
             ' — put them in the keeper sheet above as they get confirmed, because ESPN has no '
-            + 'board to read them from on Sept 3.'),
+            + 'board to read them from on draft day.'),
           h('table', null,
             h('thead', null, h('tr', null, ['Round', 'Slot', 'Player', ''].map((t) => h('th', { key: t }, t)))),
             h('tbody', null, diag.keeperRows.map((k, i) => h('tr', { key: i, class: k.slot === cfg.sleeperSlot ? 'mine' : '' },

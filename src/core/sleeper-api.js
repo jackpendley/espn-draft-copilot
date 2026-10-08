@@ -1,4 +1,4 @@
-// Sleeper reads. This exists so the Sept 3 ESPN draft can be rehearsed somewhere the
+// Sleeper reads. This exists so the real ESPN draft can be rehearsed somewhere the
 // keepers actually occupy their rounds -- ESPN mocks can't do that, because this league
 // tracks keepers in a spreadsheet rather than in ESPN.
 //
