@@ -70,8 +70,8 @@ cookie, and the draft room itself counts as that tab (see the architecture notes
 
 ### Guide data
 
-The board is driven by a paid third-party draft guide that I hand-transcribed into
-`data/guide/`. It is gitignored and not redistributed. You can bring your own data in the same
+The board is driven by a freely available third-party draft guide that I hand-transcribed into
+`data/guide/`. It is the author's work, so it is gitignored and not redistributed here. You can bring your own data in the same
 format; the layout, the validation the build performs, and the transcription method that works
 are in [docs/GUIDE-DATA.md](docs/GUIDE-DATA.md).
 

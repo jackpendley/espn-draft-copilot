@@ -1,8 +1,8 @@
 # Guide data
 
 The board is driven by a third-party draft guide (ranks, tiers, tags, adjusted PPG, luck,
-playcaller tables, ...) that was **hand-transcribed** into `data/guide/`. That guide is a
-paid product by its author, so **it is not in this repository** and `data/guide/` is
+playcaller tables, ...) that was **hand-transcribed** into `data/guide/`. That guide is free to read
+but is the author's copyrighted work, so **it is not in this repository** and `data/guide/` is
 gitignored. You need your own copy and your own transcription to run a full build.
 
 Without it everything else still works: `npm test` runs entirely on a small synthetic
