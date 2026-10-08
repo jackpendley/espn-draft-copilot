@@ -221,7 +221,7 @@ export function App({ initialConfig = null } = {}) {
       h('div', { class: 'grid' },
         h('div', null, h('label', null, 'Sleeper draft ID'),
           h('input', {
-            value: cfg.sleeperDraftId || '', placeholder: '1000000000000000002',
+            value: cfg.sleeperDraftId || '', placeholder: '1234567890123456789',
             onInput: (e) => save({ sleeperDraftId: draftIdFromUrl(e.target.value) || e.target.value.trim() }),
           })),
         h('div', null, h('label', null, 'Sleeper username'),
@@ -238,7 +238,7 @@ export function App({ initialConfig = null } = {}) {
       ),
       h('p', { class: 'hint' },
         'Paste the whole draft room URL if you like — ',
-        h('code', null, 'sleeper.com/draft/nfl/1000000000000000002'),
+        h('code', null, 'sleeper.com/draft/nfl/1234567890123456789'),
         ' — the ID is pulled out of it. You usually will not need to: opening a Sleeper draft '
         + 'room fills this in on its own, which is what makes a throwaway mock zero-setup. '
         + 'The slot is read from the draft order once the username resolves.'),

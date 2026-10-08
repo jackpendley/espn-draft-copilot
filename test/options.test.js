@@ -24,7 +24,7 @@ function stubChrome(config) {
 
 const CONFIG = {
   platform: 'espn', leagueId: '123', myTeamSlot: 5, teams: 12, rounds: 16,
-  sleeperDraftId: '1000000000000000002', sleeperUsername: 'jack', sleeperSlot: 4,
+  sleeperDraftId: '1000000000000000002', sleeperUsername: 'testuser', sleeperSlot: 4,
   keepers: [{ team: 'Jack', player: 'Wes Wideout', round: 6, espnId: 9000002, teamSlot: 5 }],
   manualDrafted: [], manualUndrafted: [],
 };
