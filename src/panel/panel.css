@@ -4,7 +4,10 @@
 #draft-copilot-root { position: fixed; z-index: 2147483000; }
 
 .dc-shell {
-  position: fixed; top: 64px; right: 16px; width: 520px; max-height: calc(100vh - 96px);
+  /* No fixed width here: the shell sizes itself to whatever Panel.js renders inside it, so
+     minimizing (which renders only .dc-header) shrinks the shell's own border/shadow down
+     to the header instead of leaving a stray full-width strip behind. */
+  position: fixed; top: 64px; right: 16px; max-height: calc(100vh - 96px);
   display: flex; flex-direction: column;
   font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: #1a1d21; background: #fff;
@@ -12,7 +15,7 @@
   box-shadow: 0 12px 40px rgba(0,0,0,.22);
   overflow: hidden;
 }
-.dc-panel { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 96px); }
+.dc-panel { width: 520px; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 96px); }
 
 .dc-header {
   display: flex; align-items: center; gap: 8px; padding: 9px 12px;
@@ -48,12 +51,7 @@
 }
 .dc-close:hover { opacity: 1; }
 
-.dc-collapsed {
-  position: fixed; top: 64px; right: 16px; z-index: 2147483000;
-  background: #12181f; color: #fff; padding: 8px 14px; border-radius: 8px;
-  font: 600 12px -apple-system, BlinkMacSystemFont, sans-serif; cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0,0,0,.25);
-}
+.dc-footer-warn { color: #c99700; font-weight: 700; }
 
 .dc-error {
   padding: 10px 12px; background: #fdecea; color: #8c1d18;
@@ -62,6 +60,12 @@
 .dc-error button {
   margin-left: 8px; font-size: 11px; padding: 3px 8px; cursor: pointer;
   border: 1px solid #c62828; background: #fff; color: #c62828; border-radius: 4px;
+}
+
+/* Loud on purpose: picks have stopped syncing mid-draft, not just a config problem. */
+.dc-syncdown {
+  padding: 10px 12px; background: #c62828; color: #fff;
+  border-bottom: 1px solid #8c1d18; font-size: 12px; line-height: 1.45;
 }
 
 /* ---- status strip ---- */
@@ -110,9 +114,18 @@
   grid-template-columns: 30px 8px 1fr 44px 34px 26px 42px 38px 34px 8px 22px;
   align-items: center; gap: 5px;
   padding: 5px 10px; border-bottom: 1px solid #f0f2f5; cursor: pointer;
+  max-height: 40px; opacity: 1;
+  transition: max-height .3s ease, opacity .25s ease, padding .3s ease, border-color .3s ease;
 }
 .dc-row:hover { background: #f7f9fc; }
+/* Rookie through 3rd-year -- keeper-league swing targets in the late rounds. */
+.dc-row.dc-young-row { background: #f2f9f3; }
+.dc-row.dc-young-row:hover { background: #e9f5eb; }
 .dc-row.dc-selected { background: #eaf2fd; }
+.dc-row.dc-row-exiting {
+  max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; border-color: transparent;
+  overflow: hidden; pointer-events: none; cursor: default; background: #fdecea;
+}
 .dc-rank { font-weight: 700; font-size: 11px; color: #6b7280; text-align: right; }
 .dc-dot { width: 8px; height: 8px; border-radius: 50%; }
 .dc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -146,6 +159,13 @@
 
 .dc-card { padding: 10px; }
 .dc-cardhead { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+/* .dc-close is white-on-dark, styled for the header bar -- this card sits on a light
+   background, so its close button needs its own, visible color. */
+.dc-card-close {
+  margin-left: auto; background: transparent; border: 0; color: #6b7280;
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.dc-card-close:hover { color: #1a1d21; }
 .dc-cardname { font-size: 15px; font-weight: 700; }
 .dc-cardsub { font-size: 11px; color: #6b7280; }
 .dc-tag {

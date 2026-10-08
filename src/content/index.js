@@ -33,6 +33,12 @@ function isDraftRoom() {
 // a fresh mock needs no configuration at all.
 const draftId = () => (platform === SLEEPER ? draftIdFromUrl(location.href) : null);
 
+// ESPN's draft room URL always carries its own leagueId too (?leagueId=...) -- read it the
+// same way, so the panel self-corrects to whatever league you're actually standing in
+// instead of quietly polling a stale or wrong one left over in options from a prior season
+// or a different league.
+const leagueId = () => (platform === ESPN ? new URLSearchParams(location.search).get('leagueId') : null);
+
 function mount() {
   if (document.getElementById(HOST_ID)) return;
 
@@ -46,7 +52,7 @@ function mount() {
   host.appendChild(shell);
   makeDraggable(shell);
 
-  render(h(Panel, { platform, draftId: draftId() }), shell);
+  render(h(Panel, { platform, draftId: draftId(), leagueId: leagueId() }), shell);
 
   try {
     attachBadges(platform);

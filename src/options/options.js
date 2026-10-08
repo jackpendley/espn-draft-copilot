@@ -9,6 +9,12 @@ import { slotForUser } from '../core/sleeper-api.js';
 import { send } from '../core/messaging.js';
 
 
+// Pre-filled from the 2026 keeper sheet screenshot so the Keepers box below just needs
+// "Parse & match", a draft slot per row, and "Save" -- no copy/paste required on draft day.
+// Isaiah TeSlaa (Eden, R8) is left out: he isn't on Joel's 262-player board, so he can't
+// resolve to an espnId here -- see the hint text below the table.
+const SEED_KEEPER_PASTE = '';
+
 /**
  * @param initialConfig  seeds the config synchronously instead of waiting on
  *                       chrome.storage. Only the tests pass it -- the real page loads
@@ -19,7 +25,7 @@ export function App({ initialConfig = null } = {}) {
   const [dataset, setDataset] = useState(null);
   const [league, setLeague] = useState(null);
   const [status, setStatus] = useState(null);
-  const [paste, setPaste] = useState('');
+  const [paste, setPaste] = useState(SEED_KEEPER_PASTE);
   const [parsed, setParsed] = useState(null);
   const [diag, setDiag] = useState(null);
   const [sleeperLeague, setSleeperLeague] = useState(null);
@@ -178,6 +184,12 @@ export function App({ initialConfig = null } = {}) {
     });
     setParsed({ rows: resolved, errors });
   };
+
+  // Auto-parse the pre-filled seed once the guide dataset is ready, so the review table is
+  // already showing when the page opens -- one less click before setting draft slots.
+  useEffect(() => {
+    if (index && paste === SEED_KEEPER_PASTE && !parsed) doParse();
+  }, [index]);
 
   const commit = async () => {
     if (!parsed) return;

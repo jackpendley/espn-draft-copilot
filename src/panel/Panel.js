@@ -1,5 +1,5 @@
 import { h } from 'preact';
-import { useState, useEffect, useMemo, useCallback } from 'preact/hooks';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
 import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlanFor } from '../core/board.js';
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
 import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
@@ -18,7 +18,7 @@ const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
  * @param draftId   Sleeper only: read straight out of the draft room URL, so a throwaway
  *                  mock needs no configuration.
  */
-export function Panel({ platform: platformProp = null, draftId: draftIdProp = null } = {}) {
+export function Panel({ platform: platformProp = null, draftId: draftIdProp = null, leagueId: leagueIdProp = null } = {}) {
   const [dataset, setDataset] = useState(null);
   const [config, setConfig] = useState(null);
   const [league, setLeague] = useState(null);
@@ -29,17 +29,29 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
   const [positions, setPositions] = useState([]);
   const [hideAvoid, setHideAvoid] = useState(false);
   const [targetsOnly, setTargetsOnly] = useState(false);
+  const [youngOnly, setYoungOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const [stale, setStale] = useState(false);   // orphaned by an extension reload
+  const [syncState, setSyncState] = useState('live');   // 'live' | 'reconnecting' | 'down'
+  const [syncError, setSyncError] = useState(null);     // last error text, once sync is 'down'
+  const [exiting, setExiting] = useState([]);   // rows fading out after being drafted
+  const prevVisibleRef = useRef([]);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+  // Read by the poll loop's closure at schedule-time -- refs stay live regardless of when
+  // that effect was created, so this doesn't require re-keying the poll loop on every
+  // draft update just to know how close the user's own pick is.
+  const closeRef = useRef(false);
 
   // The content script knows which site it mounted on. The standalone page does not, so
   // it falls back to whatever the options page last selected.
   const platform = platformProp || config?.platform || ESPN;
   const isSleeper = platform === SLEEPER;
   const draftId = draftIdProp || config?.sleeperDraftId || null;
-  const feed = { platform, ...(isSleeper ? { draftId } : {}) };
+  const leagueId = leagueIdProp || config?.leagueId || null;
+  const feed = { platform, ...(isSleeper ? { draftId } : { leagueId }) };
 
   // ---- load static things once ----
   useEffect(() => {
@@ -64,10 +76,19 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     safeSet({ platform: SLEEPER, sleeperDraftId: draftIdProp });
   }, [isSleeper, draftIdProp, config?.sleeperDraftId, config?.platform]);
 
+  // Same idea for ESPN: the real draft room's URL always carries its own leagueId, so trust
+  // that over whatever was last typed into options -- a stale leagueId from a prior season
+  // or a different league is exactly the kind of thing that silently breaks pick sync.
+  useEffect(() => {
+    if (isSleeper || !leagueIdProp || !config) return;
+    if (config.leagueId === leagueIdProp && config.platform === ESPN) return;
+    safeSet({ platform: ESPN, leagueId: leagueIdProp });
+  }, [isSleeper, leagueIdProp, config?.leagueId, config?.platform]);
+
   // ---- league settings ----
   useEffect(() => {
     if (!config) return;
-    if (isSleeper ? !draftId : !config.leagueId) return;
+    if (isSleeper ? !draftId : !leagueId) return;
     let alive = true;
     (async () => {
       const l = await send({ type: 'league', ...feed });
@@ -76,35 +97,102 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
       else setError(l?.error || null);
     })();
     return () => { alive = false; };
-  }, [platform, draftId, config?.leagueId]);
+  }, [platform, draftId, leagueId]);
 
   // ---- poll live picks ----
+  // Self-rescheduling loop rather than a fixed setInterval: a tick only ever schedules the
+  // next one once it has finished, so a slow patch of network can never cause requests to
+  // pile up on top of each other.
+  //
+  // Deliberately flat, not exponential: an earlier version doubled the delay on every
+  // failure (as a defense against ESPN rate-limiting), but that turns ordinary, expected
+  // hiccups into a compounding multi-second stall -- exactly the wrong trade during a fast
+  // draft. The background now fails open to its last known-good picks (background/index.js)
+  // instead of erroring, so a real failure reaching here should be rare; when one does, it
+  // just retries at the normal cadence instead of backing off. Sleeper's documented limit is
+  // ~1000 req/min (~17/sec); this loop never gets close, so there is no real rate-limit risk
+  // to defend against on that side, and ESPN gets the same flat, bounded behavior.
   useEffect(() => {
     if (!config) return;
-    if (isSleeper ? !draftId : !config.leagueId) return;
+    if (isSleeper ? !draftId : !leagueId) return;
     let alive = true;
-    let id = null;
-    const stop = () => { alive = false; if (id) clearInterval(id); id = null; };
+    let inFlight = false;
+    let timer = null;
+    let lastPickCount = null;
+    let failStreak = 0;
+    const NORMAL_MS = 1000;      // clean-run cadence
+    const FAST_MS = 400;         // a pick just landed, or the user is on/near the clock
+    const RATE_LIMIT_MS = 4000;  // short, flat pause on a *confirmed* 429 -- not exponential
+    // The background already fails open to cached picks on a transient hiccup (see
+    // background/index.js), so an error actually reaching the panel means something is
+    // genuinely wrong (bad auth, no ESPN tab, real outage) -- surface it loudly after a
+    // couple of misses rather than leaving it as a footer label nobody's watching mid-draft.
+    const DOWN_AFTER = 2;
+
+    const stop = () => { alive = false; if (timer) clearTimeout(timer); timer = null; };
+    const schedule = (ms) => { if (alive) timer = setTimeout(tick, ms); };
+    const base = () => (closeRef.current ? FAST_MS : NORMAL_MS);
+
     const tick = async () => {
-      if (!extensionAlive()) { setStale(true); stop(); return; }
-      const r = await send({ type: 'picks', ...feed });
-      if (!alive) return;
-      if (r?.invalidated) { setStale(true); stop(); return; }
-      if (r?.ok) {
-        setDraft({
-          picks: r.picks, inProgress: r.inProgress, drafted: r.drafted,
-          keeperPicks: r.keeperPicks || [],
-          rawPickCount: r.rawPickCount ?? r.picks.length,
-        });
+      if (inFlight) return;   // a visibilitychange nudge can race a pending timer
+      inFlight = true;
+      // Computed up front and scheduled unconditionally in `finally`, below, so that a
+      // thrown error on any one attempt can never silently kill the loop -- nothing here
+      // skips past the schedule() call the way an early branch return used to.
+      let nextDelay = base();
+      try {
+        if (!extensionAlive()) { setStale(true); stop(); return; }
+        const r = await send({ type: 'picks', ...feed });
+        if (!alive) return;
+        if (r?.invalidated) { setStale(true); stop(); return; }
+        if (r?.ok) {
+          const count = r.rawPickCount ?? (r.picks ? r.picks.length : 0);
+          const changed = lastPickCount != null && count !== lastPickCount;
+          lastPickCount = count;
+          nextDelay = changed ? FAST_MS : base();
+          failStreak = 0;
+          setSyncState('live');
+          setSyncError(null);
+          setDraft({
+            picks: r.picks || [], inProgress: r.inProgress, drafted: r.drafted,
+            keeperPicks: r.keeperPicks || [],
+            rawPickCount: count,
+          });
+        } else {
+          failStreak += 1;
+          const rateLimited = /429/.test(String(r?.error || ''));
+          nextDelay = rateLimited ? RATE_LIMIT_MS : base();
+          setSyncState(failStreak >= DOWN_AFTER ? 'down' : 'reconnecting');
+          setSyncError(r?.error || null);
+          console.warn('[Draft Copilot] picks poll failed, retrying in', nextDelay, 'ms:', r?.error);
+        }
+      } catch (err) {
+        failStreak += 1;
+        nextDelay = base();
+        setSyncState(failStreak >= DOWN_AFTER ? 'down' : 'reconnecting');
+        setSyncError(String(err?.message || err));
+        console.error('[Draft Copilot] picks poll threw, retrying in', nextDelay, 'ms:', err);
+      } finally {
+        inFlight = false;
+        schedule(nextDelay);
       }
     };
+
+    // A backgrounded tab's timers get throttled by the browser -- catch back up the moment
+    // the draft tab is looked at again instead of waiting out whatever delay was pending.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (timer) clearTimeout(timer);
+      tick();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
     tick();
-    id = setInterval(tick, 3000);
-    return stop;
+    return () => { document.removeEventListener('visibilitychange', onVisible); stop(); };
     // Deliberately NOT keyed on the keeper list: the worker reads that from storage
     // itself, and every ✓ mark writes storage -- re-keying would tear the poll down and
     // rebuild it on each one, mid-draft.
-  }, [platform, draftId, config?.leagueId]);
+  }, [platform, draftId, leagueId]);
 
   const teams = league?.teams || config?.teams || 12;
   const rounds = league?.rounds || config?.rounds || 15;
@@ -176,6 +264,12 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
   const onTheClock = myNextOverall === currentOverall;
   const currentRound = order.picks.find((p) => p.overall === currentOverall)?.round ?? 1;
 
+  // Feeds the poll loop's fast lane: refresh aggressively right when it matters, not just
+  // on a flat cadence the whole draft.
+  useEffect(() => {
+    closeRef.current = onTheClock || (nextInfo != null && nextInfo.picksUntilNext <= 3);
+  }, [onTheClock, nextInfo]);
+
   const rows = useMemo(() => {
     if (!dataset) return [];
     return buildBoard(dataset, {
@@ -185,9 +279,32 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
   }, [dataset, draftedIds, allKeptIds, currentOverall, myNextOverall, onTheClock]);
 
   const visible = useMemo(
-    () => sortBoard(filterBoard(rows, { positions, hideAvoid, targetsOnly, search }), sortMode).slice(0, 120),
-    [rows, positions, hideAvoid, targetsOnly, search, sortMode],
+    () => sortBoard(filterBoard(rows, { positions, hideAvoid, targetsOnly, youngOnly, search }), sortMode).slice(0, 120),
+    [rows, positions, hideAvoid, targetsOnly, youngOnly, search, sortMode],
   );
+
+  // A row that was on screen last render and is now gone because it just got drafted gets
+  // kept around a little longer, fading out, instead of just vanishing on the next poll.
+  useEffect(() => {
+    const currIds = new Set(visible.map((r) => r.espnId));
+    const justLeft = prevVisibleRef.current.filter((r) => !currIds.has(r.espnId) && draftedIds.has(r.espnId));
+    prevVisibleRef.current = visible;
+    // Drop anything that came back into `visible` (a filter/sort change, or a keeper
+    // reclassified) and de-dupe against anything already animating out -- two elements with
+    // the same key is invalid and can throw during reconciliation, which would otherwise
+    // silently kill this effect's ability to ever run again.
+    setExiting((cur) => {
+      const kept = cur.filter((r) => !currIds.has(r.espnId));
+      const already = new Set(kept.map((r) => r.espnId));
+      return [...kept, ...justLeft.filter((r) => !already.has(r.espnId))];
+    });
+    if (!justLeft.length) return;
+    const ids = new Set(justLeft.map((r) => r.espnId));
+    setTimeout(() => {
+      if (!mountedRef.current) return;
+      setExiting((cur) => cur.filter((r) => !ids.has(r.espnId)));
+    }, 350);
+  }, [visible, draftedIds]);
 
   const tiers = useMemo(() => tierStatus(rows).filter((t) => t.breaking && ['RB', 'WR', 'TE', 'QB'].includes(t.pos)), [rows]);
 
@@ -244,22 +361,69 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     await safeSet({ manualDrafted: [...new Set([...cur, espnId])] });
   }, []);
 
-  if (collapsed) {
-    return h('div', { class: 'dc-collapsed', onClick: () => setCollapsed(false) }, 'Draft Copilot ▸');
-  }
+  // Shared between the live board rows and the ones fading out after being drafted, so the
+  // exit animation renders the exact same row instead of a second, drifting definition.
+  const renderRow = (r, isExiting = false) => {
+    const warnings = evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget });
+    const sev = worstSeverity(warnings);
+    const inj = INJURY_SHORT[r.injuryStatus];
+    const young = r.yearsExp != null && r.yearsExp <= 2
+      ? ['Rookie', '2nd year', '3rd year'][r.yearsExp] : null;
+    return h('div', {
+      key: r.espnId,
+      class: `dc-row ${isExiting ? 'dc-row-exiting' : ''} ${young ? 'dc-young-row' : ''} ${selected?.espnId === r.espnId ? 'dc-selected' : ''}`,
+      title: young ? `${young} -- keeper-league swing` : undefined,
+      onClick: isExiting ? undefined : () => setSelected(selected?.espnId === r.espnId ? null : r),
+    },
+      h('span', { class: 'dc-rank' }, r.joelRank ?? '–'),
+      h('span', { class: 'dc-dot', style: { background: TAG_COLOR[r.tag] } }),
+      h('span', { class: 'dc-name' }, r.name,
+        inj && h('span', { class: 'dc-inj' }, inj),
+        r.joel?.profile && h('span', { class: 'dc-profileflag', title: 'Has a full profile card' }, '❞'),
+      ),
+      h('span', { class: 'dc-pos' }, `${r.pos}${r.posRank ?? ''}`),
+      h('span', { class: 'dc-team' }, r.team),
+      h('span', { class: 'dc-tier', title: `${r.pos} tier ${r.tier}` }, r.tier ? `T${r.tier}` : ''),
+      h('span', { class: 'dc-adp', title: `ESPN ADP ${one(r.adp)} → keeper-adjusted ${one(r.adjAdp)}` }, one(r.adjAdp)),
+      h('span', {
+        class: `dc-reach ${r.reach < -8 ? 'dc-good' : (r.reach > 15 ? 'dc-bad' : '')}`,
+        title: 'Picks between now and their adjusted ADP. Negative = they have fallen past it.',
+      }, signed(r.reach)),
+      h('span', {
+        class: 'dc-avail',
+        title: 'Chance they last until your next pick',
+      }, r.availNext == null ? '' : `${Math.round(r.availNext * 100)}%`),
+      sev && h('span', { class: 'dc-sev', style: { background: SEV_COLOR[sev] }, title: warnings.map((w) => w.title).join(' · ') }),
+      h('button', {
+        class: 'dc-mark', title: 'Mark drafted (safety net if ESPN sync lags)',
+        onClick: (e) => { e.stopPropagation(); markDrafted(r.espnId); },
+      }, '✓'),
+    );
+  };
+
+  // Always the same header, whether expanded or not, so it stays inside .dc-shell (the
+  // draggable node) either way -- dragging and the shell's own border/shadow keep working
+  // on the minimized bar for free, instead of it becoming a separate, undraggable pill.
+  const header = h('div', { class: 'dc-header' },
+    h('span', { class: 'dc-title' }, 'Draft Copilot'),
+    h('span', { class: 'dc-sub' }, "Joel Smyth's 2026 Guide · PPR"),
+    h('span', {
+      class: `dc-chip ${isSleeper ? 'dc-chip-practice' : ''}`,
+      title: isSleeper
+        ? 'Rehearsal on Sleeper. Same board, same ESPN ADP, same keeper maths — only the pick feed differs.'
+        : 'Live ESPN league feed.',
+    }, isSleeper ? 'SLEEPER · practice' : 'ESPN'),
+    h('button', {
+      class: 'dc-close',
+      onClick: () => setCollapsed((c) => !c),
+      title: collapsed ? 'Expand' : 'Collapse',
+    }, collapsed ? '▸' : '–'),
+  );
+
+  if (collapsed) return header;
 
   return h('div', { class: 'dc-panel' },
-    h('div', { class: 'dc-header' },
-      h('span', { class: 'dc-title' }, 'Draft Copilot'),
-      h('span', { class: 'dc-sub' }, "Joel Smyth's 2026 Guide · PPR"),
-      h('span', {
-        class: `dc-chip ${isSleeper ? 'dc-chip-practice' : ''}`,
-        title: isSleeper
-          ? 'Rehearsal on Sleeper. Same board, same ESPN ADP, same keeper maths — only the pick feed differs.'
-          : 'Live ESPN league feed.',
-      }, isSleeper ? 'SLEEPER · practice' : 'ESPN'),
-      h('button', { class: 'dc-close', onClick: () => setCollapsed(true), title: 'Collapse' }, '–'),
-    ),
+    header,
 
     drift.length > 0 && h('div', { class: 'dc-drift' },
       h('strong', null, 'This Sleeper draft does not match your league: '),
@@ -274,7 +438,16 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     !stale && error && h('div', { class: 'dc-error' }, error,
       h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Open options')),
 
-    config && (isSleeper ? !draftId : !config.leagueId) && h('div', { class: 'dc-error' },
+    // The background already absorbs one-off blips by serving cached picks, so this only
+    // fires once the picks poll has actually failed a couple of times in a row -- something
+    // real is wrong (auth, no ESPN tab, an outage) and the board has stopped updating. Loud
+    // on purpose: a quiet footer label is exactly what got missed mid-draft before this existed.
+    !stale && syncState === 'down' && h('div', { class: 'dc-syncdown' },
+      h('strong', null, 'Not syncing picks. '),
+      syncError || 'The last attempt to reach the draft feed failed.',
+      ' The board below may be out of date -- use the ✓ button on a drafted player to keep it accurate by hand.'),
+
+    config && (isSleeper ? !draftId : !leagueId) && h('div', { class: 'dc-error' },
       isSleeper
         ? "Couldn't read a draft ID from this page. Open the draft room itself (sleeper.com/draft/nfl/…), or paste the ID in options. "
         : 'No league configured yet. ',
@@ -363,6 +536,10 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
           onClick: () => setPositions((cur) => cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]),
         }, p)),
         h('button', { class: targetsOnly ? 'dc-on' : '', onClick: () => setTargetsOnly((v) => !v) }, '★ Targets'),
+        h('button', {
+          class: youngOnly ? 'dc-on' : '', onClick: () => setYoungOnly((v) => !v),
+          title: 'Rookies through 3rd-year players -- keeper-league swings in the late rounds',
+        }, '🌱 Young'),
         h('button', { class: hideAvoid ? 'dc-on' : '', onClick: () => { const v = !hideAvoid; setHideAvoid(v); safeSet({ hideAvoid: v }); } }, 'Hide avoid'),
       ),
       h('input', {
@@ -373,41 +550,11 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
 
     // ---- board ----
     h('div', { class: 'dc-list' },
-      visible.length === 0 && h('div', { class: 'dc-empty' }, 'Nobody left matching those filters.'),
-      visible.map((r) => {
-        const warnings = evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget });
-        const sev = worstSeverity(warnings);
-        const inj = INJURY_SHORT[r.injuryStatus];
-        return h('div', {
-          key: r.espnId,
-          class: `dc-row ${selected?.espnId === r.espnId ? 'dc-selected' : ''}`,
-          onClick: () => setSelected(selected?.espnId === r.espnId ? null : r),
-        },
-          h('span', { class: 'dc-rank' }, r.joelRank ?? '–'),
-          h('span', { class: 'dc-dot', style: { background: TAG_COLOR[r.tag] } }),
-          h('span', { class: 'dc-name' }, r.name,
-            inj && h('span', { class: 'dc-inj' }, inj),
-            r.joel?.profile && h('span', { class: 'dc-profileflag', title: 'Has a full profile card' }, '❞'),
-          ),
-          h('span', { class: 'dc-pos' }, `${r.pos}${r.posRank ?? ''}`),
-          h('span', { class: 'dc-team' }, r.team),
-          h('span', { class: 'dc-tier', title: `${r.pos} tier ${r.tier}` }, r.tier ? `T${r.tier}` : ''),
-          h('span', { class: 'dc-adp', title: `ESPN ADP ${one(r.adp)} → keeper-adjusted ${one(r.adjAdp)}` }, one(r.adjAdp)),
-          h('span', {
-            class: `dc-reach ${r.reach < -8 ? 'dc-good' : (r.reach > 15 ? 'dc-bad' : '')}`,
-            title: 'Picks between now and their adjusted ADP. Negative = they have fallen past it.',
-          }, signed(r.reach)),
-          h('span', {
-            class: 'dc-avail',
-            title: 'Chance they last until your next pick',
-          }, r.availNext == null ? '' : `${Math.round(r.availNext * 100)}%`),
-          sev && h('span', { class: 'dc-sev', style: { background: SEV_COLOR[sev] }, title: warnings.map((w) => w.title).join(' · ') }),
-          h('button', {
-            class: 'dc-mark', title: 'Mark drafted (safety net if ESPN sync lags)',
-            onClick: (e) => { e.stopPropagation(); markDrafted(r.espnId); },
-          }, '✓'),
-        );
-      }),
+      visible.length === 0 && exiting.length === 0 && h('div', { class: 'dc-empty' }, 'Nobody left matching those filters.'),
+      visible.map((r) => renderRow(r)),
+      // Drafted since the last poll: kept mounted a moment longer, fading out, instead of
+      // just disappearing.
+      exiting.map((r) => renderRow(r, true)),
     ),
 
     // ---- selected player detail ----
@@ -419,7 +566,13 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     ),
 
     h('div', { class: 'dc-footer' },
-      draft.inProgress ? 'Live · syncing every 3s' : (draft.drafted ? 'Draft complete' : 'Draft not started'),
+      draft.inProgress
+        ? (syncState === 'down'
+          ? h('span', { class: 'dc-footer-warn' }, 'Not syncing — see above')
+          : syncState === 'reconnecting'
+            ? h('span', { class: 'dc-footer-warn' }, 'Reconnecting…')
+            : 'Live · syncing in real time')
+        : (draft.drafted ? 'Draft complete' : 'Draft not started'),
       ` · ${platformLabel(platform)}`,
       ' · ',
       h('a', { href: '#', onClick: (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); } }, 'keepers & settings'),
