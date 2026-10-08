@@ -1,36 +1,33 @@
-// Decorates ESPN's own player rows with Joel's rank + tag color, so the augmentation
-// shows up where your eyes already are. Every selector is best-effort and wrapped:
-// if ESPN changes their markup this layer goes quiet rather than breaking the panel.
+// Decorates the draft site's own player rows with Joel's rank + tag color, so the
+// augmentation shows up where your eyes already are. Every selector is best-effort and
+// wrapped: if the markup shifts this layer goes quiet rather than breaking the panel.
+//
+// The selectors live in platform.js because ESPN and Sleeper share nothing structurally.
+// Sleeper's board in particular is a virtualised React grid with hashed class names, so
+// its selectors are a best guess -- no badges there is an acceptable outcome, a thrown
+// error during a draft is not.
 
 import { TAG_COLOR, TAG_LABEL } from '../panel/format.js';
 import { send } from '../core/messaging.js';
 import { extensionAlive } from '../core/runtime.js';
+import { normalizeName } from '../core/names.js';
+import { PLATFORMS, ESPN } from '../core/platform.js';
 
 const MARK = 'data-dc-badged';
 
-// ESPN has used several table shells over the years; try them broadly and bail quietly.
-const ROW_SELECTORS = [
-  '.Table__TR',
-  'tr[class*="Table__TR"]',
-  '[class*="playerTableRow"]',
-  '[class*="PlayerRow"]',
-];
-const NAME_SELECTORS = [
-  '.player-column__athlete .AnchorLink',
-  '.player-column__bio .AnchorLink',
-  'a[href*="/football/player/"]',
-  '[class*="playerinfo__playername"]',
-];
-
 let byName = null;
+let selectors = null;
 
-export async function attachBadges() {
+export async function attachBadges(platform = ESPN) {
+  const p = PLATFORMS[platform] || PLATFORMS[ESPN];
+  selectors = { rows: p.rowSelectors.join(','), names: p.nameSelectors };
+
   const res = await send({ type: 'dataset' });
   if (!res?.ok) return;
   byName = new Map();
   for (const p of res.dataset.players) {
     if (p.joel.pprRank == null && p.joel.posRank == null) continue;
-    byName.set(normalize(p.name), p);
+    byName.set(normalizeName(p.name), p);
   }
 
   let obs = null;
@@ -45,13 +42,13 @@ export async function attachBadges() {
 }
 
 function decorate() {
-  if (!byName) return;
-  const rows = document.querySelectorAll(ROW_SELECTORS.join(','));
+  if (!byName || !selectors) return;
+  const rows = document.querySelectorAll(selectors.rows);
   for (const row of rows) {
     if (row.hasAttribute(MARK)) continue;
-    const nameEl = firstMatch(row, NAME_SELECTORS);
+    const nameEl = firstMatch(row, selectors.names);
     if (!nameEl) continue;
-    const p = byName.get(normalize(nameEl.textContent));
+    const p = byName.get(normalizeName(nameEl.textContent));
     row.setAttribute(MARK, '1');
     if (!p) continue;
 
@@ -75,15 +72,6 @@ const firstMatch = (root, sels) => {
   for (const s of sels) { const el = root.querySelector(s); if (el) return el; }
   return null;
 };
-
-const normalize = (s) => String(s || '')
-  .toLowerCase()
-  .replace(/[.'’`]/g, '')
-  .replace(/[-–—]/g, ' ')
-  .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, '')
-  .replace(/[^a-z0-9 ]/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
 
 function debounce(fn, ms) {
   let t;

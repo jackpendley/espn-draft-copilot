@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "ESPN Draft Copilot -- Joel Smyth 2026",
+  "name": "Draft Copilot -- Joel Smyth 2026",
   "version": "0.1.0",
-  "description": "Joel Smyth's 2026 Draft Guide, keeper-aware, live inside the ESPN draft room.",
+  "description": "Joel Smyth's 2026 Draft Guide, keeper-aware, inside the ESPN draft room -- and rehearsable on Sleeper.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://fantasy.espn.com/*",
-    "https://lm-api-reads.fantasy.espn.com/*"
+    "https://lm-api-reads.fantasy.espn.com/*",
+    "https://sleeper.com/*",
+    "https://api.sleeper.app/*"
   ],
   "background": { "service_worker": "build/background.js", "type": "module" },
   "content_scripts": [
@@ -15,11 +17,20 @@
       "js": ["build/content.js"],
       "css": ["build/panel.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://sleeper.com/*"],
+      "js": ["build/content.js"],
+      "css": ["build/panel.css"],
+      "run_at": "document_idle"
     }
   ],
   "options_page": "build/options.html",
   "action": { "default_title": "Draft Copilot -- open options" },
   "web_accessible_resources": [
-    { "resources": ["build/dataset.json"], "matches": ["https://fantasy.espn.com/*"] }
+    {
+      "resources": ["build/dataset.json"],
+      "matches": ["https://fantasy.espn.com/*", "https://sleeper.com/*"]
+    }
   ]
 }

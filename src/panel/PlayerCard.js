@@ -31,7 +31,7 @@ export function PlayerCard({ row, dataset, onClose }) {
         ),
       ),
       row.tag !== 'neutral' && h('span', { class: 'dc-tag', style: { background: TAG_COLOR[row.tag] } }, TAG_LABEL[row.tag]),
-      h('button', { class: 'dc-close', onClick: onClose, title: 'Close' }, '×'),
+      h('button', { class: 'dc-card-close', onClick: onClose, title: 'Close' }, '×'),
     ),
 
     h('div', { class: 'dc-cardbody' },

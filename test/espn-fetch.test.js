@@ -63,6 +63,72 @@ test('a page 401 does not mask a direct fetch that works', async () => {
   assert.deepEqual(await f(URL_), { via: 'direct' });
 });
 
+// ---- preferredTabId: relaying straight to the tab that actually asked (the draft room
+// itself), skipping the tabs.query + sequential-fallback dance entirely. ----
+
+test('a preferred tab (the draft room itself) is used directly, no tabs.query at all', async () => {
+  let queried = false;
+  globalThis.chrome = {
+    runtime: { lastError: null },
+    tabs: {
+      query: async () => { queried = true; return []; },
+      sendMessage: (id, _msg, cb) => cb(id === 42 ? { ok: true, data: { via: 'preferred' } } : { ok: false }),
+    },
+  };
+  globalThis.fetch = async () => ({ ok: false, status: 500 });
+  const f = await load();
+  assert.deepEqual(await f(URL_, {}, 42), { via: 'preferred' });
+  assert.equal(queried, false, 'a working preferred tab should never need the broad tabs.query search');
+});
+
+test('a preferred tab that fails falls back to the broad tab search, then direct', async () => {
+  setup({ tabs: [], directBody: { via: 'direct' } });
+  const origSendMessage = globalThis.chrome.tabs.sendMessage;
+  globalThis.chrome.tabs.sendMessage = (id, msg, cb) => {
+    if (id === 42) { cb({ ok: false, error: 'no-response' }); return; }
+    origSendMessage(id, msg, cb);
+  };
+  const f = await load();
+  assert.deepEqual(await f(URL_, {}, 42), { via: 'direct' });
+});
+
+test('a preferred tab 401 reports auth guidance immediately, without trying other tabs', async () => {
+  let queried = false;
+  globalThis.chrome = {
+    runtime: { lastError: null },
+    tabs: {
+      query: async () => { queried = true; return []; },
+      sendMessage: (_id, _msg, cb) => cb({ ok: false, status: 401, error: 'ESPN 401: You are not authorized to view this League.' }),
+    },
+  };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+  const f = await load();
+  await assert.rejects(() => f(URL_, {}, 42), /not authorized.*You are not authorized to view this League/is);
+  assert.equal(queried, false);
+});
+
+// ---- ESPN's own JSON error body ("details":[{"message": "..."}]) is far more useful than
+// a bare status code -- it should show up in what the panel eventually displays. ----
+
+test('a structured ESPN error body surfaces its message through the page relay', async () => {
+  globalThis.chrome = {
+    runtime: { lastError: null },
+    tabs: {
+      query: async () => [{ id: 7 }],
+      sendMessage: (_id, _msg, cb) => cb({ ok: false, status: 401, error: 'ESPN 401: You are not authorized to view this League.' }),
+    },
+  };
+  globalThis.fetch = async () => ({ ok: false, status: 401, json: async () => ({ messages: ['You are not authorized to view this League.'] }) });
+  const f = await load();
+  await assert.rejects(() => f(URL_), /You are not authorized to view this League/);
+});
+
+test('a 429 is tagged distinctly so the poll loop can tell it apart from an ordinary failure', async () => {
+  setup({ tabs: [], directStatus: 429 });
+  const f = await load();
+  await assert.rejects(() => f(URL_), /429/);
+});
+
 test('tries every open ESPN tab before giving up', async () => {
   let calls = 0;
   globalThis.chrome = {

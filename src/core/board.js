@@ -52,6 +52,7 @@ export function buildBoard(dataset, state) {
       tier: p.joel.tier, tag: p.joel.tag,
       adp: p.espn.adp, adjAdp: a, injuryStatus: p.espn.injuryStatus,
       reach, edge, availNext, takeNow,
+      yearsExp: p.yearsExp ?? null,   // 0 = rookie; best-effort, not every player maps
       joel: p.joel,
     });
   }
@@ -69,11 +70,12 @@ export function sortBoard(rows, mode = 'value') {
   return [...rows].sort(SORTS[mode] || SORTS.value);
 }
 
-export function filterBoard(rows, { positions, hideAvoid, targetsOnly, search } = {}) {
+export function filterBoard(rows, { positions, hideAvoid, targetsOnly, youngOnly, search } = {}) {
   let out = rows;
   if (positions && positions.length) out = out.filter((r) => positions.includes(r.pos));
   if (hideAvoid) out = out.filter((r) => r.tag !== 'avoid');
   if (targetsOnly) out = out.filter((r) => r.tag === 'target');
+  if (youngOnly) out = out.filter((r) => r.yearsExp != null && r.yearsExp <= 2);
   if (search) {
     const q = search.toLowerCase();
     out = out.filter((r) => r.name.toLowerCase().includes(q) || r.team.toLowerCase().includes(q));
