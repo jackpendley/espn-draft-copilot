@@ -3,7 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Joel Smyth's 2026 Draft Guide, live inside the ESPN draft room (and rehearsable on Sleeper)",
+  "description": "Keeper-aware fantasy football draft assistant: a Chrome extension that overlays a live board on ESPN (and Sleeper, for rehearsals)",
+  "author": "Jack Pendley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jackpendley/espn-draft-copilot.git"
+  },
+  "keywords": [
+    "fantasy-football",
+    "chrome-extension",
+    "espn",
+    "sleeper",
+    "preact"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "fetch:players": "node scripts/fetch-espn-players.mjs",
     "fetch:sleeper": "node scripts/fetch-sleeper-players.mjs",

@@ -1,0 +1,270 @@
+{
+  "builtAt": "2000-01-01T00:00:00.000Z",
+  "espnFetchedAt": "2000-01-01T00:00:00.000Z",
+  "source": "Synthetic test fixture",
+  "scoring": "PPR",
+  "idMap": {
+    "sleeper": {}
+  },
+  "strategy": {
+    "source": "Synthetic",
+    "rules": [],
+    "roundByRound": {
+      "plan": []
+    }
+  },
+  "top50": [
+    {
+      "n": 1,
+      "text": "A synthetic stat with no players.",
+      "players": []
+    },
+    {
+      "n": 2,
+      "text": "Rico Runner's starts are a synthetic stat.",
+      "players": [
+        "Rico Runner"
+      ]
+    }
+  ],
+  "teamCtx": {
+    "AAA": {
+      "team": "AAA",
+      "ol25Rank": 19,
+      "olTrend": "flat",
+      "cohesion": 5,
+      "olRank26": 3,
+      "qbRuns": false,
+      "gamescript": "shootout",
+      "playcaller": {
+        "team": "AAA",
+        "playcaller": "Pat Playcaller",
+        "seasons": 5,
+        "pctRb1": 75.1,
+        "rb1Rank": 4,
+        "scheme": "Gap",
+        "rbScreenRank": "15",
+        "newTeam": false,
+        "firstTimePlaycaller": false
+      }
+    }
+  },
+  "dst": [],
+  "kickers": [],
+  "players": [
+    {
+      "espnId": 9000001,
+      "name": "Rico Runner",
+      "pos": "RB",
+      "team": "AAA",
+      "espn": {
+        "adp": 1.5,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 39,
+        "pprRank": 1,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 1,
+        "halfRank": 1,
+        "posRank": 1,
+        "tier": 1,
+        "tag": "target",
+        "adjPpg25": 21,
+        "adjPpgRank": 5,
+        "adjPpgNote": "w/ Sam Slinger",
+        "luck": {
+          "totalLost": -5.5,
+          "pctLost": -2.1
+        },
+        "pprLean": {
+          "pctViaRec": 23.2,
+          "lean": "ppr"
+        },
+        "rbVolume": {
+          "projVolumeRank": 7,
+          "adjVolume25": "6",
+          "confidence": "high",
+          "smallSample": false
+        },
+        "goldMine": {
+          "bucket": "gold-standard",
+          "borderline": false
+        },
+        "stats": [
+          2
+        ],
+        "profile": null
+      },
+      "yearsExp": 3
+    },
+    {
+      "espnId": 9000002,
+      "name": "Wes Wideout",
+      "pos": "WR",
+      "team": "BBB",
+      "espn": {
+        "adp": 3,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 38,
+        "pprRank": 2,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 2,
+        "halfRank": 2,
+        "posRank": 2,
+        "tier": 1,
+        "tag": "neutral",
+        "adjPpg25": null,
+        "adjPpgRank": null,
+        "adjPpgNote": null,
+        "luck": {
+          "totalLost": 19,
+          "pctLost": 5.5
+        },
+        "pprLean": null,
+        "rbVolume": null,
+        "goldMine": null,
+        "stats": [],
+        "profile": null
+      },
+      "yearsExp": 3
+    },
+    {
+      "espnId": 9000003,
+      "name": "Tom Tightend",
+      "pos": "TE",
+      "team": "CCC",
+      "espn": {
+        "adp": 4.5,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 37,
+        "pprRank": 3,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 3,
+        "halfRank": 3,
+        "posRank": 3,
+        "tier": 2,
+        "tag": "neutral",
+        "adjPpg25": null,
+        "adjPpgRank": null,
+        "adjPpgNote": null,
+        "luck": null,
+        "pprLean": null,
+        "rbVolume": null,
+        "goldMine": null,
+        "stats": [],
+        "profile": null
+      },
+      "yearsExp": 3
+    },
+    {
+      "espnId": 9000004,
+      "name": "Quinn Quarterback",
+      "pos": "QB",
+      "team": "AAA",
+      "espn": {
+        "adp": 6,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 36,
+        "pprRank": 4,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 4,
+        "halfRank": 4,
+        "posRank": 4,
+        "tier": 2,
+        "tag": "neutral",
+        "adjPpg25": null,
+        "adjPpgRank": null,
+        "adjPpgNote": null,
+        "luck": {
+          "totalLost": 12,
+          "pctLost": 3.1
+        },
+        "pprLean": null,
+        "rbVolume": null,
+        "goldMine": null,
+        "stats": [],
+        "profile": null
+      },
+      "yearsExp": 3
+    },
+    {
+      "espnId": 9000005,
+      "name": "Walt Wideout",
+      "pos": "WR",
+      "team": "BBB",
+      "espn": {
+        "adp": 7.5,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 35,
+        "pprRank": 5,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 5,
+        "halfRank": 5,
+        "posRank": 5,
+        "tier": 2,
+        "tag": "avoid",
+        "adjPpg25": null,
+        "adjPpgRank": null,
+        "adjPpgNote": null,
+        "luck": null,
+        "pprLean": null,
+        "rbVolume": null,
+        "goldMine": null,
+        "stats": [],
+        "profile": null
+      },
+      "yearsExp": 3
+    },
+    {
+      "espnId": 9000006,
+      "name": "Randy Runner",
+      "pos": "RB",
+      "team": "CCC",
+      "espn": {
+        "adp": 9,
+        "adpChange": 0,
+        "percentOwned": 99,
+        "auctionValue": 34,
+        "pprRank": 6,
+        "injuryStatus": "ACTIVE",
+        "seasonOutlook": "Synthetic test player."
+      },
+      "joel": {
+        "pprRank": 6,
+        "halfRank": 6,
+        "posRank": 6,
+        "tier": 3,
+        "tag": "neutral",
+        "adjPpg25": null,
+        "adjPpgRank": null,
+        "adjPpgNote": null,
+        "luck": null,
+        "pprLean": null,
+        "rbVolume": null,
+        "goldMine": null,
+        "stats": [],
+        "profile": null
+      },
+      "yearsExp": 3
+    }
+  ]
+}

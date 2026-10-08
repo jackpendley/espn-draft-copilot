@@ -15,6 +15,10 @@ const G = (f) => join(ROOT, 'data/guide', f);
 const CACHE = join(ROOT, 'data/cache/espn-players.json');
 const SLEEPER_CACHE = join(ROOT, 'data/cache/sleeper-players.json');
 
+if (!existsSync(G('big-board-ppr.txt'))) {
+  console.error('Missing data/guide/ -- the draft guide is not part of this repo. See docs/GUIDE-DATA.md.');
+  process.exit(1);
+}
 if (!existsSync(CACHE)) {
   console.error('Missing data/cache/espn-players.json -- run `npm run fetch:players` first.');
   process.exit(1);

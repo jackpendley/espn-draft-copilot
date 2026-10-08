@@ -1,4 +1,4 @@
-// Renders the panel against the real dataset with a stubbed chrome.* API.
+// Renders the panel against a small synthetic dataset with a stubbed chrome.* API.
 // Catches component-level crashes that unit tests on pure logic would miss.
 
 import test from 'node:test';
@@ -7,13 +7,13 @@ import { readFileSync } from 'node:fs';
 import { h } from 'preact';
 import renderToString from 'preact-render-to-string';
 
-const dataset = JSON.parse(readFileSync(new URL('../dist/dataset.json', import.meta.url), 'utf8'));
+const dataset = JSON.parse(readFileSync(new URL('./fixtures/sample-dataset.json', import.meta.url), 'utf8'));
 const byName = (n) => dataset.players.find((p) => p.name === n);
 
 const KEEPERS = [
-  { team: 'Jack', player: 'Jaxon Smith-Njigba', round: 6, espnId: byName('Jaxon Smith-Njigba').espnId, teamSlot: 5 },
-  { team: 'Dave', player: 'Bijan Robinson', round: 1, espnId: byName('Bijan Robinson').espnId, teamSlot: 2 },
-  { team: 'Sam',  player: 'Brock Bowers', round: 3, espnId: byName('Brock Bowers').espnId, teamSlot: 7 },
+  { team: 'A', player: 'Wes Wideout', round: 6, espnId: byName('Wes Wideout').espnId, teamSlot: 5 },
+  { team: 'B', player: 'Randy Runner', round: 1, espnId: byName('Randy Runner').espnId, teamSlot: 2 },
+  { team: 'C', player: 'Tom Tightend', round: 3, espnId: byName('Tom Tightend').espnId, teamSlot: 7 },
 ];
 
 const CONFIG = {
@@ -72,7 +72,7 @@ test('an empty keeper sheet is called out, not silently computed around', async 
 
 test('the panel says out loud when it is on the practice feed', async () => {
   // The chip is the thing that stops a Sleeper tab left open overnight from being
-  // mistaken for the real draft room on Sept 3.
+  // mistaken for the real draft room on draft day.
   stubChrome();
   const { Panel } = await import('../src/panel/Panel.js');
   const html = renderToString(h(Panel, { platform: 'sleeper', draftId: '123456789012' }));
@@ -82,20 +82,20 @@ test('the panel says out loud when it is on the practice feed', async () => {
 test('PlayerCard renders every section for a fully-populated player', async () => {
   stubChrome();
   const { PlayerCard } = await import('../src/panel/PlayerCard.js');
-  const p = byName('Chase Brown');
+  const p = byName('Rico Runner');
   const row = {
     ...p, joelRank: p.joel.pprRank, posRank: p.joel.posRank, tier: p.joel.tier,
     tag: p.joel.tag, adp: p.espn.adp, adjAdp: 20.1, availNext: 0.31,
     injuryStatus: p.espn.injuryStatus, joel: p.joel,
   };
   const html = renderToString(h(PlayerCard, { row, dataset, onClose: () => {} }));
-  assert.match(html, /Chase Brown/);
-  assert.match(html, /w\/ Joe Burrow/);           // adjusted PPG reason
+  assert.match(html, /Rico Runner/);
+  assert.match(html, /w\/ Sam Slinger/);           // adjusted PPG reason
   assert.match(html, /Gold Standard/);            // gold mine bucket
   assert.match(html, /better in PPR/);            // ppr lean, our format
-  assert.match(html, /Zac Taylor/);               // playcaller
+  assert.match(html, /Pat Playcaller/);               // playcaller
   assert.match(html, /regression risk/);          // he was lucky in 2025
-  assert.match(html, /Chase Brown's starts/);    // one of the 50 stats
+  assert.match(html, /Rico Runner's starts/);    // one of the 50 stats
 });
 
 test('PlayerCard renders a player with almost no guide data attached', async () => {
@@ -113,10 +113,21 @@ test('PlayerCard renders a player with almost no guide data attached', async () 
 test('the unlucky/lucky split reads the right direction', async () => {
   stubChrome();
   const { PlayerCard } = await import('../src/panel/PlayerCard.js');
-  const lamb = byName('CeeDee Lamb');           // unluckiest player of 2025
+  const lamb = byName('Wes Wideout');           // a player who lost points to bad luck
   const html = renderToString(h(PlayerCard, {
     row: { ...lamb, tag: 'neutral', joel: lamb.joel }, dataset, onClose: () => {},
   }));
   assert.match(html, /positive regression candidate/);
   assert.ok(!/regression risk/.test(html));
+});
+
+test('BoardRow renders rank, name, tag dot, and a young-player marker', async () => {
+  stubChrome();
+  const { BoardRow } = await import('../src/panel/BoardRow.js');
+  const p = byName('Rico Runner');
+  const row = { ...p, joelRank: 1, posRank: 1, tier: 1, tag: 'target', adp: 1.5, adjAdp: 1.5, reach: 2, availNext: 0.4, yearsExp: 0 };
+  const html = renderToString(h(BoardRow, { row, warnings: [], onSelect: () => {}, onMark: () => {} }));
+  assert.match(html, /Rico Runner/);
+  assert.match(html, /dc-young-row/);
+  assert.match(html, /40%/);
 });

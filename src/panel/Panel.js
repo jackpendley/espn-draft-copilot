@@ -2,13 +2,14 @@ import { h } from 'preact';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
 import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlanFor } from '../core/board.js';
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
-import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
+import { evaluate, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
 import { ESPN, SLEEPER, platformLabel } from '../core/platform.js';
 import { send } from '../core/messaging.js';
 import { extensionAlive, safeGet, safeSet, onStorageLocal } from '../core/runtime.js';
 import { PlayerCard } from './PlayerCard.js';
-import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
+import { BoardRow, WarningList } from './BoardRow.js';
+import { createPoller } from './poller.js';
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
 
@@ -100,98 +101,36 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
   }, [platform, draftId, leagueId]);
 
   // ---- poll live picks ----
-  // Self-rescheduling loop rather than a fixed setInterval: a tick only ever schedules the
-  // next one once it has finished, so a slow patch of network can never cause requests to
-  // pile up on top of each other.
-  //
-  // Deliberately flat, not exponential: an earlier version doubled the delay on every
-  // failure (as a defense against ESPN rate-limiting), but that turns ordinary, expected
-  // hiccups into a compounding multi-second stall -- exactly the wrong trade during a fast
-  // draft. The background now fails open to its last known-good picks (background/index.js)
-  // instead of erroring, so a real failure reaching here should be rare; when one does, it
-  // just retries at the normal cadence instead of backing off. Sleeper's documented limit is
-  // ~1000 req/min (~17/sec); this loop never gets close, so there is no real rate-limit risk
-  // to defend against on that side, and ESPN gets the same flat, bounded behavior.
+  // See poller.js for the cadence and backoff rules. Deliberately NOT keyed on the keeper
+  // list: the worker reads that from storage itself, and every ✓ mark writes storage --
+  // re-keying would tear the poll down and rebuild it on each one, mid-draft.
   useEffect(() => {
     if (!config) return;
     if (isSleeper ? !draftId : !leagueId) return;
-    let alive = true;
-    let inFlight = false;
-    let timer = null;
-    let lastPickCount = null;
-    let failStreak = 0;
-    const NORMAL_MS = 1000;      // clean-run cadence
-    const FAST_MS = 400;         // a pick just landed, or the user is on/near the clock
-    const RATE_LIMIT_MS = 4000;  // short, flat pause on a *confirmed* 429 -- not exponential
-    // The background already fails open to cached picks on a transient hiccup (see
-    // background/index.js), so an error actually reaching the panel means something is
-    // genuinely wrong (bad auth, no ESPN tab, real outage) -- surface it loudly after a
-    // couple of misses rather than leaving it as a footer label nobody's watching mid-draft.
-    const DOWN_AFTER = 2;
-
-    const stop = () => { alive = false; if (timer) clearTimeout(timer); timer = null; };
-    const schedule = (ms) => { if (alive) timer = setTimeout(tick, ms); };
-    const base = () => (closeRef.current ? FAST_MS : NORMAL_MS);
-
-    const tick = async () => {
-      if (inFlight) return;   // a visibilitychange nudge can race a pending timer
-      inFlight = true;
-      // Computed up front and scheduled unconditionally in `finally`, below, so that a
-      // thrown error on any one attempt can never silently kill the loop -- nothing here
-      // skips past the schedule() call the way an early branch return used to.
-      let nextDelay = base();
-      try {
-        if (!extensionAlive()) { setStale(true); stop(); return; }
-        const r = await send({ type: 'picks', ...feed });
-        if (!alive) return;
-        if (r?.invalidated) { setStale(true); stop(); return; }
-        if (r?.ok) {
-          const count = r.rawPickCount ?? (r.picks ? r.picks.length : 0);
-          const changed = lastPickCount != null && count !== lastPickCount;
-          lastPickCount = count;
-          nextDelay = changed ? FAST_MS : base();
-          failStreak = 0;
-          setSyncState('live');
-          setSyncError(null);
-          setDraft({
-            picks: r.picks || [], inProgress: r.inProgress, drafted: r.drafted,
-            keeperPicks: r.keeperPicks || [],
-            rawPickCount: count,
-          });
-        } else {
-          failStreak += 1;
-          const rateLimited = /429/.test(String(r?.error || ''));
-          nextDelay = rateLimited ? RATE_LIMIT_MS : base();
-          setSyncState(failStreak >= DOWN_AFTER ? 'down' : 'reconnecting');
-          setSyncError(r?.error || null);
-          console.warn('[Draft Copilot] picks poll failed, retrying in', nextDelay, 'ms:', r?.error);
-        }
-      } catch (err) {
-        failStreak += 1;
-        nextDelay = base();
-        setSyncState(failStreak >= DOWN_AFTER ? 'down' : 'reconnecting');
-        setSyncError(String(err?.message || err));
-        console.error('[Draft Copilot] picks poll threw, retrying in', nextDelay, 'ms:', err);
-      } finally {
-        inFlight = false;
-        schedule(nextDelay);
-      }
-    };
-
-    // A backgrounded tab's timers get throttled by the browser -- catch back up the moment
-    // the draft tab is looked at again instead of waiting out whatever delay was pending.
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (timer) clearTimeout(timer);
-      tick();
-    };
+    const poller = createPoller({
+      fetchPicks: () => send({ type: 'picks', ...feed }),
+      extensionAlive,
+      isClose: () => closeRef.current,
+      onStale: () => setStale(true),
+      onLive: (r, count) => {
+        setSyncState('live');
+        setSyncError(null);
+        setDraft({
+          picks: r.picks || [], inProgress: r.inProgress, drafted: r.drafted,
+          keeperPicks: r.keeperPicks || [],
+          rawPickCount: count,
+        });
+      },
+      onFailure: ({ state, error, delay }) => {
+        setSyncState(state);
+        setSyncError(error);
+        console.warn('[Draft Copilot] picks poll failed, retrying in', delay, 'ms:', error);
+      },
+    });
+    const onVisible = () => { if (document.visibilityState === 'visible') poller.nudge(); };
     document.addEventListener('visibilitychange', onVisible);
-
-    tick();
-    return () => { document.removeEventListener('visibilitychange', onVisible); stop(); };
-    // Deliberately NOT keyed on the keeper list: the worker reads that from storage
-    // itself, and every ✓ mark writes storage -- re-keying would tear the poll down and
-    // rebuild it on each one, mid-draft.
+    poller.start();
+    return () => { document.removeEventListener('visibilitychange', onVisible); poller.stop(); };
   }, [platform, draftId, leagueId]);
 
   const teams = league?.teams || config?.teams || 12;
@@ -363,43 +302,15 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
 
   // Shared between the live board rows and the ones fading out after being drafted, so the
   // exit animation renders the exact same row instead of a second, drifting definition.
-  const renderRow = (r, isExiting = false) => {
-    const warnings = evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget });
-    const sev = worstSeverity(warnings);
-    const inj = INJURY_SHORT[r.injuryStatus];
-    const young = r.yearsExp != null && r.yearsExp <= 2
-      ? ['Rookie', '2nd year', '3rd year'][r.yearsExp] : null;
-    return h('div', {
-      key: r.espnId,
-      class: `dc-row ${isExiting ? 'dc-row-exiting' : ''} ${young ? 'dc-young-row' : ''} ${selected?.espnId === r.espnId ? 'dc-selected' : ''}`,
-      title: young ? `${young} -- keeper-league swing` : undefined,
-      onClick: isExiting ? undefined : () => setSelected(selected?.espnId === r.espnId ? null : r),
-    },
-      h('span', { class: 'dc-rank' }, r.joelRank ?? '–'),
-      h('span', { class: 'dc-dot', style: { background: TAG_COLOR[r.tag] } }),
-      h('span', { class: 'dc-name' }, r.name,
-        inj && h('span', { class: 'dc-inj' }, inj),
-        r.joel?.profile && h('span', { class: 'dc-profileflag', title: 'Has a full profile card' }, '❞'),
-      ),
-      h('span', { class: 'dc-pos' }, `${r.pos}${r.posRank ?? ''}`),
-      h('span', { class: 'dc-team' }, r.team),
-      h('span', { class: 'dc-tier', title: `${r.pos} tier ${r.tier}` }, r.tier ? `T${r.tier}` : ''),
-      h('span', { class: 'dc-adp', title: `ESPN ADP ${one(r.adp)} → keeper-adjusted ${one(r.adjAdp)}` }, one(r.adjAdp)),
-      h('span', {
-        class: `dc-reach ${r.reach < -8 ? 'dc-good' : (r.reach > 15 ? 'dc-bad' : '')}`,
-        title: 'Picks between now and their adjusted ADP. Negative = they have fallen past it.',
-      }, signed(r.reach)),
-      h('span', {
-        class: 'dc-avail',
-        title: 'Chance they last until your next pick',
-      }, r.availNext == null ? '' : `${Math.round(r.availNext * 100)}%`),
-      sev && h('span', { class: 'dc-sev', style: { background: SEV_COLOR[sev] }, title: warnings.map((w) => w.title).join(' · ') }),
-      h('button', {
-        class: 'dc-mark', title: 'Mark drafted (safety net if ESPN sync lags)',
-        onClick: (e) => { e.stopPropagation(); markDrafted(r.espnId); },
-      }, '✓'),
-    );
-  };
+  const renderRow = (r, isExiting = false) => h(BoardRow, {
+    key: r.espnId,
+    row: r,
+    isExiting,
+    isSelected: selected?.espnId === r.espnId,
+    warnings: evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget }),
+    onSelect: () => setSelected(selected?.espnId === r.espnId ? null : r),
+    onMark: markDrafted,
+  });
 
   // Always the same header, whether expanded or not, so it stays inside .dc-shell (the
   // draggable node) either way -- dragging and the shell's own border/shadow keep working
@@ -428,7 +339,7 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     drift.length > 0 && h('div', { class: 'dc-drift' },
       h('strong', null, 'This Sleeper draft does not match your league: '),
       drift.join(' · '),
-      '. The pick numbers below follow this draft, so they will not match Sept 3.'),
+      '. The pick numbers below follow this draft, so they will not match draft day.'),
 
     stale && h('div', { class: 'dc-stale' },
       h('strong', null, 'This panel is out of date. '),
@@ -461,11 +372,11 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
       + 'nobody kept anyone — which is not this league. ',
       h('button', { onClick: () => chrome.runtime.openOptionsPage() }, 'Paste the keeper sheet')),
 
-    // Board keepers work for the rehearsal, but ESPN has no board to read on Sept 3.
+    // Board keepers work for the rehearsal, but ESPN has no board to read on draft day.
     boardOnlyKeepers.length > 0 && h('div', { class: 'dc-drift' },
       h('strong', null, `${boardOnlyKeepers.length} keeper${boardOnlyKeepers.length > 1 ? 's' : ''} read off the Sleeper board. `),
       'Their rounds are being burned correctly here. They are not in your keeper sheet '
-      + 'though, and ESPN has no board to read them from — add them before Sept 3.'),
+      + 'though, and ESPN has no board to read them from — add them before draft day.'),
 
     isSleeper && mySlot == null && h('div', { class: 'dc-drift' },
       h('strong', null, 'No draft slot set for Sleeper. '),
@@ -577,13 +488,5 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
       ' · ',
       h('a', { href: '#', onClick: (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); } }, 'keepers & settings'),
     ),
-  );
-}
-
-function WarningList({ warnings }) {
-  if (!warnings.length) return null;
-  return h('div', { class: 'dc-warnings' },
-    warnings.map((w) => h('div', { key: w.id, class: 'dc-warning', style: { borderLeftColor: SEV_COLOR[w.severity] } },
-      h('strong', null, w.title), h('div', { class: 'dc-warndetail' }, w.detail))),
   );
 }

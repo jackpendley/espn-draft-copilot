@@ -1,7 +1,8 @@
 import { h, render } from 'preact';
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { parseKeeperPaste, simulatePickOrder } from '../core/keepers.js';
-import { buildIndex, resolve } from '../core/names.js';
+import { buildIndex } from '../core/names.js';
+import { summarizeEspnPicks, summarizeSleeperPicks, resolveKeeperRows } from './diagnostics.js';
 import { DEFAULTS } from '../core/storage.js';
 import { ESPN, SLEEPER } from '../core/platform.js';
 import { draftIdFromUrl } from '../core/sleeper-constants.js';
@@ -9,11 +10,10 @@ import { slotForUser } from '../core/sleeper-api.js';
 import { send } from '../core/messaging.js';
 
 
-// Pre-filled from the 2026 keeper sheet screenshot so the Keepers box below just needs
-// "Parse & match", a draft slot per row, and "Save" -- no copy/paste required on draft day.
-// Isaiah TeSlaa (Eden, R8) is left out: he isn't on Joel's 262-player board, so he can't
-// resolve to an espnId here -- see the hint text below the table.
-const SEED_KEEPER_PASTE = '';
+// Optional pre-fill: build-extension inlines data/local/keepers.tsv (gitignored) when it
+// exists, so the Keepers box needs only "Parse & match", a draft slot per row, and
+// "Save" on draft day. Empty in a fresh clone and under test.
+const SEED_KEEPER_PASTE = typeof __SEED_KEEPER_PASTE__ === 'string' ? __SEED_KEEPER_PASTE__ : '';
 
 /**
  * @param initialConfig  seeds the config synchronously instead of waiting on
@@ -108,34 +108,7 @@ export function App({ initialConfig = null } = {}) {
     const r = await send({ type: 'picks', platform: SLEEPER, draftId });
     if (!r?.ok) { setDiag({ error: r?.error || 'Failed.' }); return; }
 
-    const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
-    const picks = r.picks || [];
-    const unmapped = picks.filter((p) => typeof p.playerId === 'string');
-    const resolved = picks.filter((p) => byId.has(p.playerId));
-    setDiag({
-      platform: SLEEPER,
-      season: draftId,
-      total: r.rawPickCount ?? picks.length,
-      keepers: (r.keeperPicks || []).length,
-      keepersConfigured: (cfg.keepers || []).length,
-      keeperRows: (r.keeperPicks || []).map((k) => ({
-        name: byId.get(k.playerId)?.name || String(k.playerId),
-        round: k.round, slot: k.teamSlot,
-      })).sort((a, b) => a.round - b.round || a.slot - b.slot),
-      resolved: resolved.length,
-      // Two different failures: an id Sleeper has that ESPN doesn't, versus a real ESPN
-      // player who simply isn't on Joel's 262-player board. Only the first is a worry.
-      unresolved: picks.length - resolved.length,
-      unmapped: unmapped.length,
-      dst: picks.filter((p) => typeof p.playerId === 'number' && p.playerId < 0).length,
-      skipped: 0,
-      rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
-      teams: new Set(picks.map((p) => p.teamSlot)).size,
-      sample: picks.slice(0, 6).map((p) => ({
-        overall: p.overall, round: p.round, teamId: p.teamSlot, keeper: false,
-        name: byId.get(p.playerId)?.name || `(sleeper id ${p.sleeperId})`,
-      })),
-    });
+    setDiag(summarizeSleeperPicks(r, draftId, dataset?.players, cfg.keepers));
   };
 
   const runDiagnostics = async () => {
@@ -144,51 +117,23 @@ export function App({ initialConfig = null } = {}) {
     const r = await send({ type: 'picks', platform: ESPN, leagueId: cfg.leagueId, season });
     if (!r?.ok) { setDiag({ error: r?.error || 'Failed.' }); return; }
 
-    const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
-    const picks = r.picks || [];
-    const withPlayers = picks.filter((p) => p.playerId);   // D/ST ids are negative
-    const dstPicks = withPlayers.filter((p) => p.playerId < 0);
-    const resolved = withPlayers.filter((p) => byId.has(p.playerId));
-    setDiag({
-      platform: ESPN,
-      season,
-      total: picks.length,
-      keepers: picks.filter((p) => p.keeper).length,
-      resolved: resolved.length,
-      unresolved: withPlayers.length - resolved.length,
-      dst: dstPicks.length,
-      skipped: picks.length - withPlayers.length,
-      rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
-      teams: new Set(picks.map((p) => p.teamId)).size,
-      sample: picks.slice(0, 6).map((p) => ({
-        overall: p.overall, round: p.round, teamId: p.teamId, keeper: p.keeper,
-        name: byId.get(p.playerId)?.name || `(id ${p.playerId})`,
-      })),
-    });
+    setDiag(summarizeEspnPicks(r.picks, season, dataset?.players));
   };
 
   // ---- keeper paste ----
   const doParse = () => {
     if (!index) return;
     const { rows, errors } = parseKeeperPaste(paste);
-    const resolved = rows.map((r) => {
-      const m = resolve(index, r.player, null, {});
-      return {
-        ...r,
-        espnId: m.player?.espnId ?? null,
-        matchedName: m.player?.name ?? null,
-        pos: m.player?.pos ?? null,
-        nflTeam: m.player?.team ?? null,   // keep separate: r.team is the OWNER from the sheet
-        how: m.how ?? m.reason,
-      };
-    });
+    const resolved = resolveKeeperRows(rows, index);
     setParsed({ rows: resolved, errors });
   };
 
   // Auto-parse the pre-filled seed once the guide dataset is ready, so the review table is
   // already showing when the page opens -- one less click before setting draft slots.
+  // Keyed on `index` alone on purpose: it must run once per dataset load, not on every
+  // keystroke in the paste box.
   useEffect(() => {
-    if (index && paste === SEED_KEEPER_PASTE && !parsed) doParse();
+    if (index && SEED_KEEPER_PASTE && paste === SEED_KEEPER_PASTE && !parsed) doParse();
   }, [index]);
 
   const commit = async () => {
@@ -271,7 +216,7 @@ export function App({ initialConfig = null } = {}) {
         'Set up a Sleeper league that mirrors yours — 12 teams, 16 rounds, full PPR, '
         + 'QB1 RB2 WR2 TE1 FLEX1 DST1 K1 BE7 IR1, snake, no 3rd-round reversal — then draft '
         + 'each keeper by hand in its proper round. The panel takes those picks back out and '
-        + 'renumbers the rest, exactly as it will on Sept 3, so every overall number you see '
+        + 'renumbers the rest, exactly as it will on draft day, so every overall number you see '
         + 'is the number you would have seen in the real draft.'),
       h('div', { class: 'grid' },
         h('div', null, h('label', null, 'Sleeper draft ID'),
@@ -442,7 +387,7 @@ export function App({ initialConfig = null } = {}) {
             + 'the snake, so every pick after them moves up. ',
             h('strong', null, 'These live only in this Sleeper draft'),
             ' — put them in the keeper sheet above as they get confirmed, because ESPN has no '
-            + 'board to read them from on Sept 3.'),
+            + 'board to read them from on draft day.'),
           h('table', null,
             h('thead', null, h('tr', null, ['Round', 'Slot', 'Player', ''].map((t) => h('th', { key: t }, t)))),
             h('tbody', null, diag.keeperRows.map((k, i) => h('tr', { key: i, class: k.slot === cfg.sleeperSlot ? 'mine' : '' },

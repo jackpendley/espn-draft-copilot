@@ -1,10 +1,15 @@
 // Thin promise wrapper over chrome.storage.local with sane defaults.
 // Everything the panel needs to survive a mid-draft page reload lives here.
 
+// League-specific values (leagueId, slot, team and round counts) come from the gitignored
+// data/local/config.json, which build-extension inlines as __LOCAL_DEFAULTS__. A fresh
+// clone, and the tests, get the neutral values below.
+const LOCAL = typeof __LOCAL_DEFAULTS__ === 'object' && __LOCAL_DEFAULTS__ ? __LOCAL_DEFAULTS__ : {};
+
 export const DEFAULTS = {
   platform: 'espn',        // 'espn' (the real draft) | 'sleeper' (rehearsal)
-  leagueId: '1234567890',  // Jack's league
-  myTeamSlot: 5,           // 1-based draft position
+  leagueId: '',
+  myTeamSlot: 1,           // 1-based draft position
 
   // Sleeper exists so the panel can be rehearsed with keepers in their proper rounds,
   // which an ESPN mock cannot do. The draft id is auto-filled from the draft room URL,
@@ -29,6 +34,8 @@ export const DEFAULTS = {
   sortMode: 'value',
   hideAvoid: false,
   panelCollapsed: false,
+
+  ...LOCAL,
 };
 
 export async function getState() {

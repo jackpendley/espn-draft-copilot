@@ -9,6 +9,8 @@
 // Either path can be the one that works depending on how ESPN sets its cookies, and
 // trying both means we do not find out the hard way during a draft.
 
+import { isRateLimited, isUnauthorized, rateLimited } from './errors.js';
+
 const ESPN_TAB_QUERY = { url: 'https://fantasy.espn.com/*' };
 
 // ESPN answers a failed request with a real JSON body -- e.g.
@@ -80,13 +82,13 @@ export async function fetchViaPageOrDirect(url, headers = {}, preferredTabId = n
   // Report the more informative failure.
   const reason = viaPage.error && viaPage.error !== 'no-espn-tab' ? viaPage.error : direct.error;
   console.warn('[Draft Copilot] ESPN fetch failed on every path:', { preferredTabId, viaPage, direct, url });
-  if (String(reason).includes('401')) {
+  if (isUnauthorized(reason)) {
     throw new Error(
       `ESPN says not authorized${reason ? ` (${stripPrefix(reason)})` : ''}. Open fantasy.espn.com in a tab and make sure you are signed in, then retry.`,
     );
   }
   // Tagged distinctly so the poll loop can back off hard instead of just retrying fast.
-  if (String(reason).includes('429')) throw new Error('ESPN 429: rate limited');
+  if (isRateLimited(reason)) throw rateLimited('ESPN');
   throw new Error(reason || 'Could not reach ESPN.');
 }
 
