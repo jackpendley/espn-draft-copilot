@@ -151,6 +151,14 @@ let sleeperIds = { map: {}, matched: 0, unmatched: [], byHow: {}, collisions: []
 if (existsSync(SLEEPER_CACHE)) {
   const slCache = JSON.parse(readFileSync(SLEEPER_CACHE, 'utf8'));
   sleeperIds = buildSleeperIdMap(slCache.players, espn.players, aliases);
+
+  // Years of NFL experience (0 = rookie), via the same id map -- flags young keeper-league
+  // targets in the panel. Best-effort: only covers players the Sleeper map reaches.
+  const expBySleeperId = new Map(slCache.players.map((p) => [p.sleeperId, p.yearsExp]));
+  for (const [sleeperId, espnId] of Object.entries(sleeperIds.map)) {
+    const exp = expBySleeperId.get(sleeperId);
+    if (exp != null && players.has(espnId)) players.get(espnId).yearsExp = exp;
+  }
 } else {
   console.warn('No data/cache/sleeper-players.json -- run `npm run fetch:sleeper` to enable Sleeper drafts.');
 }

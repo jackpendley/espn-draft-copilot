@@ -37,6 +37,8 @@ async function main() {
       espnId: p.espn_id ? Number(p.espn_id) : null,
       active: !!p.active,
       searchRank: p.search_rank ?? null,
+      // 0 = rookie. Used to flag young keeper-league targets in later rounds.
+      yearsExp: typeof p.years_exp === 'number' ? p.years_exp : null,
     }));
 
   await mkdir(join(ROOT, 'data/cache'), { recursive: true });
