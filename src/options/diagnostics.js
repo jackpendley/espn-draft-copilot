@@ -20,7 +20,7 @@ export function resolveKeeperRows(rows, index) {
   });
 }
 
-/** Summarise a replayed ESPN draft (picks as returned by the 'picks' message). */
+/** Summarize a replayed ESPN draft (picks as returned by the 'picks' message). */
 export function summarizeEspnPicks(rawPicks, season, players) {
   const byId = byIdMap(players);
   const picks = rawPicks || [];
@@ -45,7 +45,7 @@ export function summarizeEspnPicks(rawPicks, season, players) {
   };
 }
 
-/** Summarise a replayed Sleeper draft (the full 'picks' response). */
+/** Summarize a replayed Sleeper draft (the full 'picks' response). */
 export function summarizeSleeperPicks(response, draftId, players, configuredKeepers) {
   const byId = byIdMap(players);
   const picks = response.picks || [];

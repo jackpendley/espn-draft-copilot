@@ -94,14 +94,14 @@ Then set each keeper's **draft slot** in the parse table so the simulation knows
 burn. Names are fuzzy-matched; anything unmatched is flagged and skipped on save rather than
 silently dropped. You can re-paste any time, including mid-draft.
 
-## Practising on Sleeper
+## Practicing on Sleeper
 
 An ESPN mock cannot rehearse keepers (the league tracks them in a spreadsheet, so ESPN thinks
 every round is open). Sleeper can:
 
 1. Create a Sleeper league mirroring yours: team count, rounds, snake, **no 3rd-round
    reversal**.
-2. Draft each keeper by hand in its real round. The panel recognises them from your sheet,
+2. Draft each keeper by hand in its real round. The panel recognizes them from your sheet,
    removes them from the feed, and renumbers everything after, exactly as draft day will.
 3. Open the draft room: the panel reads the draft ID from the URL. In options, enter your
    Sleeper username and **Connect to Sleeper** to read your seat from the draft order.
@@ -154,9 +154,10 @@ or just after a new pick, a flat 4s pause after a confirmed 429). The background
 last known picks if one refresh fails. After two consecutive failures the panel shows a red
 "Not syncing" banner.
 
-**Matching Sleeper players to ESPN's.** Sleeper uses its own ids. A build-time map joins them
-(defenses by team; everyone else by name, with **no fuzzy matching**, because striking the
-wrong player off the board mid-draft is worse than missing one).
+**Matching Sleeper players to ESPN's.** Sleeper uses its own ids. A build-time map joins them:
+defenses by team, everyone else by exact name and position, with Sleeper's own `espn_id` as a
+tiebreak (it is missing for about half of active players). There is **no fuzzy matching**,
+because striking the wrong player off the board mid-draft is worse than missing one.
 
 ## Commands
 

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isRateLimited, isUnauthorized, rateLimited } from '../src/core/errors.js';
 
-test('rateLimited errors are recognised, from an Error or a bare string', () => {
+test('rateLimited errors are recognized, from an Error or a bare string', () => {
   assert.ok(isRateLimited(rateLimited('ESPN')));
   assert.ok(isRateLimited('Sleeper 429: rate limited'));
   assert.ok(!isRateLimited(new Error('ESPN 401')));

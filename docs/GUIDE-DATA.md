@@ -14,7 +14,7 @@ fixture (`test/fixtures/sample-dataset.json`), and CI does the same.
 
 | File | Content | Parser |
 |---|---|---|
-| `big-board-ppr.txt`, `big-board-half.txt` | 150 ranked players each, with tag colour | `parseBigBoard` |
+| `big-board-ppr.txt`, `big-board-half.txt` | 150 ranked players each, with tag color | `parseBigBoard` |
 | `positional-ppr.txt` | QB 32 / RB 60 / WR 60 / TE 32 with tiers | `parsePositional` |
 | `adjusted-ppg.txt`, `luck-metric.txt`, `rb-volume.txt`, `ppr-lean.txt`, `rb-gold-mine.txt` | per-player metrics | `parse*` |
 | `teams.txt`, `playcallers.txt` | team OL / gamescript / playcaller context | `parseTeams`, `parsePlaycallers` |
@@ -50,9 +50,9 @@ diff those first before re-transcribing anything.
 
 1. `brew install poppler`, then render each page at 300-400 dpi with `pdftoppm`.
 2. Crop **each column separately** (`pdftoppm -x -y -W -H`) and transcribe one crop at a time.
-   Whole-page renders are too dense: names and tag colours get misread, and rows from one
+   Whole-page renders are too dense: names and tag colors get misread, and rows from one
    column leak into another.
-3. Check the head and tail of each crop against its neighbour for continuity.
+3. Check the head and tail of each crop against its neighbor for continuity.
 4. Run `npm run build:data`. A clean build is necessary but not sufficient: it cannot catch
    two adjacent players swapped, so spot-check a sample of rank movements against the source.
 

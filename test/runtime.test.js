@@ -85,7 +85,7 @@ test('send() short-circuits to an invalidated result without calling chrome', as
   assert.equal(r.invalidated, true);
 });
 
-test('isInvalidated recognises the Chrome message and ignores unrelated errors', async () => {
+test('isInvalidated recognizes the Chrome message and ignores unrelated errors', async () => {
   const m = await load();
   assert.equal(m.isInvalidated(new Error('Extension context invalidated.')), true);
   assert.equal(m.isInvalidated('Extension context invalidated.'), true);

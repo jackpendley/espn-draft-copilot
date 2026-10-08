@@ -178,7 +178,7 @@ export function App({ initialConfig = null } = {}) {
         + 'panel always follows whichever site it is actually running on. ',
         h('strong', null, 'Sleeper exists because an ESPN mock cannot rehearse keepers: '),
         'this league tracks them in a spreadsheet, so ESPN has no idea any round is spoken for. '
-        + 'A Sleeper mirror league where you take each keeper by hand reproduces the real pick maths.'),
+        + 'A Sleeper mirror league where you take each keeper by hand reproduces the real pick math.'),
     ),
 
     // ---- league ----
@@ -251,9 +251,9 @@ export function App({ initialConfig = null } = {}) {
         }, `Forget remembered keepers (${Object.values(cfg.sleeperKeepers || {}).reduce((n, a) => n + a.length, 0)})`),
       ),
       h('p', { class: 'hint' },
-        'Keepers are recognised by sitting on the board before the draft runs, and then '
+        'Keepers are recognized by sitting on the board before the draft runs, and then '
         + 'remembered — once the draft fills past a keeper\'s slot there is nothing left to '
-        + 'recognise it by. Rebuilt a board with different keepers? Forget them and reconnect.'),
+        + 'recognize it by. Rebuilt a board with different keepers? Forget them and reconnect.'),
       sleeperLeague && h('p', { class: 'hint' },
         `Draft order: ${Object.keys(sleeperLeague.draftOrder || {}).length} managers seated. `
         + `Status ${sleeperLeague.raw?.status}.`),
@@ -382,7 +382,7 @@ export function App({ initialConfig = null } = {}) {
         diag.keeperRows?.length > 0 && h('div', null,
           h('h2', null, `Keepers found on the board (${diag.keeperRows.length})`),
           h('p', { class: 'hint' },
-            'Sleeper flags none of these — they are recognised by sitting on the board before '
+            'Sleeper flags none of these — they are recognized by sitting on the board before '
             + 'the draft ran, which nothing but a keeper can do. Their rounds are burned out of '
             + 'the snake, so every pick after them moves up. ',
             h('strong', null, 'These live only in this Sleeper draft'),

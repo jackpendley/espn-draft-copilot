@@ -5,8 +5,11 @@
 1. **New guide.** Transcribe it into `data/guide/` (see [GUIDE-DATA.md](GUIDE-DATA.md)).
    Update any year-specific text: the panel sub-title in `src/panel/Panel.js`, the options
    page sub-title, and the round-by-round plan in `strategy.json`.
-2. `npm run fetch:players && npm run fetch:sleeper` -- refresh ESPN's player universe and
-   Sleeper's id map. `fetch-espn-players.mjs` has the season hard-wired; check it first.
+2. Bump `SEASON` in `src/core/espn-constants.js` (it drives every ESPN URL), and the
+   replay season (`2025`, plus the "Replay 2025 ESPN draft" button label) in
+   `src/options/options.js`, so the replay points at the draft you just finished. Then
+   `npm run fetch:players && npm run fetch:sleeper` to refresh ESPN's player universe and
+   Sleeper's id map.
 3. `npm run build` -- fix any unresolved names (`data/overrides/aliases.json`).
 4. Update `data/local/config.json` and `keepers.tsv`; roster slots / round count come from
    the league via "Connect to ESPN".
@@ -15,7 +18,7 @@
 
 ## Rehearse early
 
-- Build a Sleeper mirror league (README, "Practising on Sleeper"), draft the keepers by hand
+- Build a Sleeper mirror league (README, "Practicing on Sleeper"), draft the keepers by hand
   in their rounds, and run several full mocks.
 - **Open the real ESPN draft room as soon as ESPN lets you** (the pre-draft lobby opens before
   the clock) and watch the panel footer. This is the only real test of the ESPN path.

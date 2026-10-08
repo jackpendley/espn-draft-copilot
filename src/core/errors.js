@@ -1,5 +1,5 @@
 // Errors cross the service-worker/content-script boundary as plain strings, so a class
-// would not survive the trip. Everything that needs to recognise a failure kind goes
+// would not survive the trip. Everything that needs to recognize a failure kind goes
 // through these helpers instead of re-matching message text at each call site.
 
 const text = (err) => String(err?.message ?? err ?? '');

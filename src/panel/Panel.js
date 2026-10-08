@@ -321,7 +321,7 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
     h('span', {
       class: `dc-chip ${isSleeper ? 'dc-chip-practice' : ''}`,
       title: isSleeper
-        ? 'Rehearsal on Sleeper. Same board, same ESPN ADP, same keeper maths — only the pick feed differs.'
+        ? 'Rehearsal on Sleeper. Same board, same ESPN ADP, same keeper math — only the pick feed differs.'
         : 'Live ESPN league feed.',
     }, isSleeper ? 'SLEEPER · practice' : 'ESPN'),
     h('button', {

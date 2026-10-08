@@ -202,7 +202,7 @@ test('a keeper stays a keeper once the draft advances past its slot', () => {
   assert.ok(detectKeepers(board, 'drafting', ['p48']).has('p48'), 'but remembered');
 });
 
-test("Sleeper's own is_keeper flag is honoured when it is actually set", () => {
+test("Sleeper's own is_keeper flag is honored when it is actually set", () => {
   const board = [{ ...at(1), is_keeper: true }, at(2)];
   const found = detectKeepers(board, 'drafting');
   assert.deepEqual([...found], ['p1']);

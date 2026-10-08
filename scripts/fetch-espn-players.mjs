@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Pulls the ESPN 2026 fantasy player universe (public, no auth) into data/cache/espn-players.json.
+// Pulls the current-season ESPN fantasy player universe (public, no auth) into data/cache/espn-players.json.
 // Run this again close to draft day so ADP is fresh.
 
 import { writeFile, mkdir } from 'node:fs/promises';
