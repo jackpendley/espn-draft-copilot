@@ -1,7 +1,8 @@
 import { h, render } from 'preact';
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { parseKeeperPaste, simulatePickOrder } from '../core/keepers.js';
-import { buildIndex, resolve } from '../core/names.js';
+import { buildIndex } from '../core/names.js';
+import { summarizeEspnPicks, summarizeSleeperPicks, resolveKeeperRows } from './diagnostics.js';
 import { DEFAULTS } from '../core/storage.js';
 import { ESPN, SLEEPER } from '../core/platform.js';
 import { draftIdFromUrl } from '../core/sleeper-constants.js';
@@ -107,34 +108,7 @@ export function App({ initialConfig = null } = {}) {
     const r = await send({ type: 'picks', platform: SLEEPER, draftId });
     if (!r?.ok) { setDiag({ error: r?.error || 'Failed.' }); return; }
 
-    const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
-    const picks = r.picks || [];
-    const unmapped = picks.filter((p) => typeof p.playerId === 'string');
-    const resolved = picks.filter((p) => byId.has(p.playerId));
-    setDiag({
-      platform: SLEEPER,
-      season: draftId,
-      total: r.rawPickCount ?? picks.length,
-      keepers: (r.keeperPicks || []).length,
-      keepersConfigured: (cfg.keepers || []).length,
-      keeperRows: (r.keeperPicks || []).map((k) => ({
-        name: byId.get(k.playerId)?.name || String(k.playerId),
-        round: k.round, slot: k.teamSlot,
-      })).sort((a, b) => a.round - b.round || a.slot - b.slot),
-      resolved: resolved.length,
-      // Two different failures: an id Sleeper has that ESPN doesn't, versus a real ESPN
-      // player who simply isn't on Joel's 262-player board. Only the first is a worry.
-      unresolved: picks.length - resolved.length,
-      unmapped: unmapped.length,
-      dst: picks.filter((p) => typeof p.playerId === 'number' && p.playerId < 0).length,
-      skipped: 0,
-      rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
-      teams: new Set(picks.map((p) => p.teamSlot)).size,
-      sample: picks.slice(0, 6).map((p) => ({
-        overall: p.overall, round: p.round, teamId: p.teamSlot, keeper: false,
-        name: byId.get(p.playerId)?.name || `(sleeper id ${p.sleeperId})`,
-      })),
-    });
+    setDiag(summarizeSleeperPicks(r, draftId, dataset?.players, cfg.keepers));
   };
 
   const runDiagnostics = async () => {
@@ -143,49 +117,21 @@ export function App({ initialConfig = null } = {}) {
     const r = await send({ type: 'picks', platform: ESPN, leagueId: cfg.leagueId, season });
     if (!r?.ok) { setDiag({ error: r?.error || 'Failed.' }); return; }
 
-    const byId = new Map((dataset?.players || []).map((p) => [p.espnId, p]));
-    const picks = r.picks || [];
-    const withPlayers = picks.filter((p) => p.playerId);   // D/ST ids are negative
-    const dstPicks = withPlayers.filter((p) => p.playerId < 0);
-    const resolved = withPlayers.filter((p) => byId.has(p.playerId));
-    setDiag({
-      platform: ESPN,
-      season,
-      total: picks.length,
-      keepers: picks.filter((p) => p.keeper).length,
-      resolved: resolved.length,
-      unresolved: withPlayers.length - resolved.length,
-      dst: dstPicks.length,
-      skipped: picks.length - withPlayers.length,
-      rounds: picks.length ? Math.max(...picks.map((p) => p.round)) : 0,
-      teams: new Set(picks.map((p) => p.teamId)).size,
-      sample: picks.slice(0, 6).map((p) => ({
-        overall: p.overall, round: p.round, teamId: p.teamId, keeper: p.keeper,
-        name: byId.get(p.playerId)?.name || `(id ${p.playerId})`,
-      })),
-    });
+    setDiag(summarizeEspnPicks(r.picks, season, dataset?.players));
   };
 
   // ---- keeper paste ----
   const doParse = () => {
     if (!index) return;
     const { rows, errors } = parseKeeperPaste(paste);
-    const resolved = rows.map((r) => {
-      const m = resolve(index, r.player, null, {});
-      return {
-        ...r,
-        espnId: m.player?.espnId ?? null,
-        matchedName: m.player?.name ?? null,
-        pos: m.player?.pos ?? null,
-        nflTeam: m.player?.team ?? null,   // keep separate: r.team is the OWNER from the sheet
-        how: m.how ?? m.reason,
-      };
-    });
+    const resolved = resolveKeeperRows(rows, index);
     setParsed({ rows: resolved, errors });
   };
 
   // Auto-parse the pre-filled seed once the guide dataset is ready, so the review table is
   // already showing when the page opens -- one less click before setting draft slots.
+  // Keyed on `index` alone on purpose: it must run once per dataset load, not on every
+  // keystroke in the paste box.
   useEffect(() => {
     if (index && SEED_KEEPER_PASTE && paste === SEED_KEEPER_PASTE && !parsed) doParse();
   }, [index]);
