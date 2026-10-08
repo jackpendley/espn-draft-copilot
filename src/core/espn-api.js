@@ -6,11 +6,13 @@ import { fetchViaPageOrDirect } from './espn-fetch.js';
 
 // Private-league reads need the user's cookies; see espn-fetch.js for why this is
 // not a plain fetch.
-const getJson = (url, extraHeaders = {}) => fetchViaPageOrDirect(url, extraHeaders);
+const getJson = (url, extraHeaders = {}, preferredTabId = null) => (
+  fetchViaPageOrDirect(url, extraHeaders, preferredTabId)
+);
 
 /** League settings + teams: size, roster slots, scoring, and who owns which draft slot. */
-export async function fetchLeague(leagueId) {
-  const data = await getJson(leagueUrl(leagueId, ['mSettings', 'mTeam']));
+export async function fetchLeague(leagueId, preferredTabId = null) {
+  const data = await getJson(leagueUrl(leagueId, ['mSettings', 'mTeam']), {}, preferredTabId);
   const s = data.settings || {};
   const draft = s.draftSettings || {};
   const roster = s.rosterSettings || {};
@@ -42,21 +44,30 @@ export async function fetchLeague(leagueId) {
  * `season` exists so last year's completed draft can be replayed as a real-data test
  * of this whole path before the current draft room is open.
  */
-export async function fetchDraftPicks(leagueId, season) {
-  const data = await getJson(leagueUrl(leagueId, ['mDraftDetail'], season));
+export async function fetchDraftPicks(leagueId, season, preferredTabId = null) {
+  const data = await getJson(leagueUrl(leagueId, ['mDraftDetail'], season), {}, preferredTabId);
   const dd = data.draftDetail || {};
+  const picks = [];
+  for (const p of dd.picks || []) {
+    // One unexpected record shape must cost that one pick, never the whole poll.
+    try {
+      picks.push({
+        overall: p.overallPickNumber,
+        round: p.roundId,
+        roundPick: p.roundPickNumber,
+        teamId: p.teamId,
+        playerId: p.playerId,
+        keeper: !!p.keeper,
+        autoDraft: !!p.autoDraftTypeId,
+      });
+    } catch (err) {
+      console.warn('[Draft Copilot] skipped an unparseable ESPN pick:', err, p);
+    }
+  }
   return {
     drafted: !!dd.drafted,
     inProgress: !!dd.inProgress,
-    picks: (dd.picks || []).map((p) => ({
-      overall: p.overallPickNumber,
-      round: p.roundId,
-      roundPick: p.roundPickNumber,
-      teamId: p.teamId,
-      playerId: p.playerId,
-      keeper: !!p.keeper,
-      autoDraft: !!p.autoDraftTypeId,
-    })).sort((a, b) => a.overall - b.overall),
+    picks: picks.sort((a, b) => a.overall - b.overall),
   };
 }
 

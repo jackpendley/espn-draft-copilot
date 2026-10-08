@@ -12,22 +12,35 @@ import { getState } from '../core/storage.js';
 
 const cache = { league: new Map(), picks: new Map() };
 const LEAGUE_TTL = 5 * 60 * 1000;   // settings barely change
-const PICKS_TTL = 2000;             // during a draft we want this fresh
+const PICKS_TTL = 300;              // just under the panel's fastest (400ms) poll interval --
+                                     // anything slower here means the fast lane near your own
+                                     // pick just gets handed the same stale cached answer twice
 
 // Keyed by platform AND id: a Sleeper poll must never be served a stale ESPN answer, and
 // swapping between them mid-session is exactly what the rehearsal workflow does.
 async function cached(store, key, ttl, load, force) {
   const hit = store.get(key);
   if (!force && hit && Date.now() - hit.at < ttl) return hit.value;
-  const value = await load();
-  store.set(key, { value, at: Date.now() });
-  return value;
+  try {
+    const value = await load();
+    store.set(key, { value, at: Date.now() });
+    return value;
+  } catch (err) {
+    // A transient failure (a hiccup, a malformed record, anything) must never be worse than
+    // just serving what we already had -- the alternative is the panel surfacing an error
+    // and backing off, which turns a one-off blip into a visible stall during the draft.
+    if (hit) {
+      console.warn('[Draft Copilot] refresh failed, serving last known picks:', err);
+      return hit.value;
+    }
+    throw err;
+  }
 }
 
 let datasetPromise = null;
 function getDataset() {
-  // Read once and hold it: the panel asks for picks every 3 seconds and the dataset is
-  // 336 KB of JSON that never changes without an extension reload.
+  // Read once and hold it: the panel polls for picks roughly once a second and the dataset
+  // is 336 KB of JSON that never changes without an extension reload.
   if (!datasetPromise) {
     datasetPromise = fetch(chrome.runtime.getURL('build/dataset.json'))
       .then((r) => r.json())
@@ -49,13 +62,13 @@ async function target(msg, state) {
   return { platform, id };
 }
 
-async function getLeague({ platform, id }, force) {
+async function getLeague({ platform, id }, force, tabId) {
   return cached(cache.league, `${platform}:${id}`, LEAGUE_TTL, () => (
-    platform === SLEEPER ? fetchSleeperLeague(id) : fetchLeague(id)
+    platform === SLEEPER ? fetchSleeperLeague(id) : fetchLeague(id, tabId)
   ), force);
 }
 
-async function getPicks({ platform, id }, msg, state) {
+async function getPicks({ platform, id }, msg, state, tabId) {
   if (platform === SLEEPER) {
     const dataset = await getDataset();
     const store = state.sleeperKeepers || {};
@@ -81,26 +94,29 @@ async function getPicks({ platform, id }, msg, state) {
     return cached(cache.picks, `${platform}:${id}`, PICKS_TTL, load, msg.force);
   }
   // A past-season request is a diagnostic, never the live poll -- don't let it poison the cache.
-  if (msg.season) return fetchDraftPicks(id, msg.season);
-  return cached(cache.picks, `${platform}:${id}`, PICKS_TTL, () => fetchDraftPicks(id), msg.force);
+  if (msg.season) return fetchDraftPicks(id, msg.season, tabId);
+  return cached(cache.picks, `${platform}:${id}`, PICKS_TTL, () => fetchDraftPicks(id, undefined, tabId), msg.force);
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     try {
       const state = await getState();
+      // Present when the message came from an actual content-script tab (the draft room
+      // itself) -- absent for the standalone chrome-extension:// page. See espn-fetch.js.
+      const tabId = sender?.tab?.id ?? null;
       switch (msg.type) {
         case 'ping':
           sendResponse({ ok: true });
           break;
         case 'league': {
           const t = await target(msg, state);
-          sendResponse({ ok: true, platform: t.platform, league: await getLeague(t, msg.force) });
+          sendResponse({ ok: true, platform: t.platform, league: await getLeague(t, msg.force, tabId) });
           break;
         }
         case 'picks': {
           const t = await target(msg, state);
-          sendResponse({ ok: true, platform: t.platform, ...(await getPicks(t, msg, state)) });
+          sendResponse({ ok: true, platform: t.platform, ...(await getPicks(t, msg, state, tabId)) });
           break;
         }
         case 'sleeper-user':

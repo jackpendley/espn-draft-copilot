@@ -11,11 +11,13 @@ import { draftUrl, draftPicksUrl, userUrl } from './sleeper-constants.js';
 async function getJson(url) {
   let res;
   try {
-    res = await fetch(url, { headers: { accept: 'application/json' } });
+    res = await fetch(url, { cache: 'no-store', headers: { accept: 'application/json' } });
   } catch (err) {
     throw new Error(`Could not reach Sleeper: ${err.message || err}`);
   }
   if (res.status === 404) throw new Error('Sleeper has no draft with that ID. Check the ID from the draft room URL.');
+  // Tagged distinctly so the poll loop can back off hard instead of just retrying fast.
+  if (res.status === 429) throw new Error('Sleeper 429: rate limited');
   if (!res.ok) throw new Error(`Sleeper returned HTTP ${res.status}.`);
   const body = await res.json();
   if (body == null) throw new Error('Sleeper returned an empty response for that ID.');
@@ -94,21 +96,27 @@ export async function fetchSleeperPicks(draftId, { idMap = {}, keptIds = [], kno
   const picks = [];
   const keeperPicks = [];
   for (const p of ordered) {
-    const playerId = idMap[p.player_id] ?? `sl:${p.player_id}`;
-    const row = {
-      overall: picks.length + 1,                      // renumbered after keeper removal
-      sleeperPickNo: p.pick_no,
-      round: p.round,
-      roundPick: pickInRound(p, d),
-      teamId: p.roster_id ?? null,
-      teamSlot: p.draft_slot ?? null,                 // Sleeper gives this; ESPN does not
-      playerId,
-      sleeperId: p.player_id,
-      keeper: keeperIds.has(String(p.player_id)) || kept.has(playerId),
-      autoDraft: false,                               // Sleeper's payload doesn't say
-    };
-    if (row.keeper) { keeperPicks.push({ playerId, round: p.round, teamSlot: p.draft_slot ?? null }); continue; }
-    picks.push(row);
+    // One unexpected record shape must cost that one pick, never the whole poll -- a fast
+    // draft can't afford the board freezing over a single row.
+    try {
+      const playerId = idMap[p.player_id] ?? `sl:${p.player_id}`;
+      const row = {
+        overall: picks.length + 1,                      // renumbered after keeper removal
+        sleeperPickNo: p.pick_no,
+        round: p.round,
+        roundPick: pickInRound(p, d),
+        teamId: p.roster_id ?? null,
+        teamSlot: p.draft_slot ?? null,                 // Sleeper gives this; ESPN does not
+        playerId,
+        sleeperId: p.player_id,
+        keeper: keeperIds.has(String(p.player_id)) || kept.has(playerId),
+        autoDraft: false,                               // Sleeper's payload doesn't say
+      };
+      if (row.keeper) { keeperPicks.push({ playerId, round: p.round, teamSlot: p.draft_slot ?? null }); continue; }
+      picks.push(row);
+    } catch (err) {
+      console.warn('[Draft Copilot] skipped an unparseable Sleeper pick:', err, p);
+    }
   }
 
   return {
