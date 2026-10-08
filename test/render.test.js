@@ -120,3 +120,14 @@ test('the unlucky/lucky split reads the right direction', async () => {
   assert.match(html, /positive regression candidate/);
   assert.ok(!/regression risk/.test(html));
 });
+
+test('BoardRow renders rank, name, tag dot, and a young-player marker', async () => {
+  stubChrome();
+  const { BoardRow } = await import('../src/panel/BoardRow.js');
+  const p = byName('Rico Runner');
+  const row = { ...p, joelRank: 1, posRank: 1, tier: 1, tag: 'target', adp: 1.5, adjAdp: 1.5, reach: 2, availNext: 0.4, yearsExp: 0 };
+  const html = renderToString(h(BoardRow, { row, warnings: [], onSelect: () => {}, onMark: () => {} }));
+  assert.match(html, /Rico Runner/);
+  assert.match(html, /dc-young-row/);
+  assert.match(html, /40%/);
+});

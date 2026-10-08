@@ -2,14 +2,14 @@ import { h } from 'preact';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
 import { buildBoard, sortBoard, filterBoard, tierStatus, positionRuns, roundPlanFor } from '../core/board.js';
 import { simulatePickOrder, nextPickForSlot } from '../core/keepers.js';
-import { evaluate, worstSeverity, rosterNeeds } from '../core/rules.js';
+import { evaluate, rosterNeeds } from '../core/rules.js';
 import { DEFAULTS } from '../core/storage.js';
 import { ESPN, SLEEPER, platformLabel } from '../core/platform.js';
 import { send } from '../core/messaging.js';
 import { extensionAlive, safeGet, safeSet, onStorageLocal } from '../core/runtime.js';
 import { PlayerCard } from './PlayerCard.js';
+import { BoardRow, WarningList } from './BoardRow.js';
 import { createPoller } from './poller.js';
-import { TAG_COLOR, SEV_COLOR, one, signed, INJURY_SHORT } from './format.js';
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'];
 
@@ -302,43 +302,15 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
 
   // Shared between the live board rows and the ones fading out after being drafted, so the
   // exit animation renders the exact same row instead of a second, drifting definition.
-  const renderRow = (r, isExiting = false) => {
-    const warnings = evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget });
-    const sev = worstSeverity(warnings);
-    const inj = INJURY_SHORT[r.injuryStatus];
-    const young = r.yearsExp != null && r.yearsExp <= 2
-      ? ['Rookie', '2nd year', '3rd year'][r.yearsExp] : null;
-    return h('div', {
-      key: r.espnId,
-      class: `dc-row ${isExiting ? 'dc-row-exiting' : ''} ${young ? 'dc-young-row' : ''} ${selected?.espnId === r.espnId ? 'dc-selected' : ''}`,
-      title: young ? `${young} -- keeper-league swing` : undefined,
-      onClick: isExiting ? undefined : () => setSelected(selected?.espnId === r.espnId ? null : r),
-    },
-      h('span', { class: 'dc-rank' }, r.joelRank ?? '–'),
-      h('span', { class: 'dc-dot', style: { background: TAG_COLOR[r.tag] } }),
-      h('span', { class: 'dc-name' }, r.name,
-        inj && h('span', { class: 'dc-inj' }, inj),
-        r.joel?.profile && h('span', { class: 'dc-profileflag', title: 'Has a full profile card' }, '❞'),
-      ),
-      h('span', { class: 'dc-pos' }, `${r.pos}${r.posRank ?? ''}`),
-      h('span', { class: 'dc-team' }, r.team),
-      h('span', { class: 'dc-tier', title: `${r.pos} tier ${r.tier}` }, r.tier ? `T${r.tier}` : ''),
-      h('span', { class: 'dc-adp', title: `ESPN ADP ${one(r.adp)} → keeper-adjusted ${one(r.adjAdp)}` }, one(r.adjAdp)),
-      h('span', {
-        class: `dc-reach ${r.reach < -8 ? 'dc-good' : (r.reach > 15 ? 'dc-bad' : '')}`,
-        title: 'Picks between now and their adjusted ADP. Negative = they have fallen past it.',
-      }, signed(r.reach)),
-      h('span', {
-        class: 'dc-avail',
-        title: 'Chance they last until your next pick',
-      }, r.availNext == null ? '' : `${Math.round(r.availNext * 100)}%`),
-      sev && h('span', { class: 'dc-sev', style: { background: SEV_COLOR[sev] }, title: warnings.map((w) => w.title).join(' · ') }),
-      h('button', {
-        class: 'dc-mark', title: 'Mark drafted (safety net if ESPN sync lags)',
-        onClick: (e) => { e.stopPropagation(); markDrafted(r.espnId); },
-      }, '✓'),
-    );
-  };
+  const renderRow = (r, isExiting = false) => h(BoardRow, {
+    key: r.espnId,
+    row: r,
+    isExiting,
+    isSelected: selected?.espnId === r.espnId,
+    warnings: evaluate(r, { round: currentRound, currentOverall, totalRounds: rounds, myRoster, planTarget }),
+    onSelect: () => setSelected(selected?.espnId === r.espnId ? null : r),
+    onMark: markDrafted,
+  });
 
   // Always the same header, whether expanded or not, so it stays inside .dc-shell (the
   // draggable node) either way -- dragging and the shell's own border/shadow keep working
@@ -516,13 +488,5 @@ export function Panel({ platform: platformProp = null, draftId: draftIdProp = nu
       ' · ',
       h('a', { href: '#', onClick: (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); } }, 'keepers & settings'),
     ),
-  );
-}
-
-function WarningList({ warnings }) {
-  if (!warnings.length) return null;
-  return h('div', { class: 'dc-warnings' },
-    warnings.map((w) => h('div', { key: w.id, class: 'dc-warning', style: { borderLeftColor: SEV_COLOR[w.severity] } },
-      h('strong', null, w.title), h('div', { class: 'dc-warndetail' }, w.detail))),
   );
 }
