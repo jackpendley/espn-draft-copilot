@@ -90,13 +90,20 @@ test('the guide aliases apply here too', () => {
 });
 
 // ---- the built artifact ------------------------------------------------------
+// dist/dataset.json is gitignored (it embeds the private guide), so these checks only run
+// on a machine that has built it. A fresh clone and CI skip them.
+
+function builtDataset() {
+  try { return JSON.parse(readFileSync(new URL('../dist/dataset.json', import.meta.url), 'utf8')); }
+  catch { return null; }
+}
 
 test('every player on the board can be crossed off by a Sleeper pick', () => {
   // The one that matters on the night. If a guide player has no Sleeper id, someone can
   // draft them in a rehearsal and they will just sit there on the board looking available.
-  const dataset = JSON.parse(readFileSync(new URL('../dist/dataset.json', import.meta.url), 'utf8'));
-  const map = dataset.idMap?.sleeper || {};
-  if (!Object.keys(map).length) return;   // built without `npm run fetch:sleeper`
+  const dataset = builtDataset();
+  const map = dataset?.idMap?.sleeper || {};
+  if (!Object.keys(map).length) return;   // no built dataset, or built without `npm run fetch:sleeper`
 
   const reachable = new Set(Object.values(map));
   const missing = dataset.players.filter((p) => !reachable.has(p.espnId));
@@ -104,8 +111,7 @@ test('every player on the board can be crossed off by a Sleeper pick', () => {
 });
 
 test('the built map never points two Sleeper ids at one ESPN player', () => {
-  const dataset = JSON.parse(readFileSync(new URL('../dist/dataset.json', import.meta.url), 'utf8'));
-  const map = dataset.idMap?.sleeper || {};
+  const map = builtDataset()?.idMap?.sleeper || {};
   if (!Object.keys(map).length) return;
   assert.equal(new Set(Object.values(map)).size, Object.keys(map).length);
 });

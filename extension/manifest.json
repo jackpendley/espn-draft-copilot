@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Draft Copilot -- Joel Smyth 2026",
+  "name": "Draft Copilot",
   "version": "0.1.0",
-  "description": "Joel Smyth's 2026 Draft Guide, keeper-aware, inside the ESPN draft room -- and rehearsable on Sleeper.",
+  "description": "Keeper-aware fantasy football draft board inside the ESPN draft room -- and rehearsable on Sleeper.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://fantasy.espn.com/*",

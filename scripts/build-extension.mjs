@@ -3,7 +3,7 @@
 
 import * as esbuild from 'esbuild';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -18,7 +18,17 @@ if (!existsSync(join(ROOT, 'dist/dataset.json'))) {
 
 await mkdir(OUT, { recursive: true });
 
+// Personal, gitignored inputs under data/local/ are inlined at build time (see README).
+const readLocal = (f) => (existsSync(join(ROOT, 'data/local', f)) ? readFileSync(join(ROOT, 'data/local', f), 'utf8') : null);
+const localConfig = readLocal('config.json');
+const localKeepers = readLocal('keepers.tsv');
+const define = {
+  __LOCAL_DEFAULTS__: localConfig ? JSON.stringify(JSON.parse(localConfig)) : 'null',
+  __SEED_KEEPER_PASTE__: localKeepers ? JSON.stringify(localKeepers.trimEnd()) : 'null',
+};
+
 const common = {
+  define,
   bundle: true,
   format: 'esm',
   target: ['chrome120'],

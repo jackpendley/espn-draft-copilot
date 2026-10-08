@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { h } from 'preact';
 import renderToString from 'preact-render-to-string';
 
-const dataset = JSON.parse(readFileSync(new URL('../dist/dataset.json', import.meta.url), 'utf8'));
+const dataset = JSON.parse(readFileSync(new URL('./fixtures/sample-dataset.json', import.meta.url), 'utf8'));
 
 function stubChrome(config) {
   globalThis.chrome = {
@@ -25,7 +25,7 @@ function stubChrome(config) {
 const CONFIG = {
   platform: 'espn', leagueId: '123', myTeamSlot: 5, teams: 12, rounds: 16,
   sleeperDraftId: '1000000000000000002', sleeperUsername: 'jack', sleeperSlot: 4,
-  keepers: [{ team: 'Jack', player: 'Jaxon Smith-Njigba', round: 6, espnId: 4430878, teamSlot: 5 }],
+  keepers: [{ team: 'Jack', player: 'Wes Wideout', round: 6, espnId: 9000002, teamSlot: 5 }],
   manualDrafted: [], manualUndrafted: [],
 };
 
@@ -52,5 +52,5 @@ test('options renders on the Sleeper feed with the keeper sheet intact', async (
   assert.match(html, /Replay the Sleeper draft/);
   // The keeper sheet is shared: the same rounds burn on both platforms, which is the
   // entire reason Sleeper can stand in for the real draft.
-  assert.match(html, /Jaxon Smith-Njigba/);
+  assert.match(html, /Wes Wideout/);
 });

@@ -2,3 +2,10 @@ node_modules/
 data/cache/*.json
 extension/build/
 dist/dataset.json
+
+# Private / third-party inputs -- never commit these (see docs/GUIDE-DATA.md)
+data/guide/
+data/local/*
+!data/local/*.example*
+data/overrides/unmatched-report.txt
+.DS_Store
